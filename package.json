@@ -1,5 +1,5 @@
 {
-	"name": "app-keep-alive",
+	"name": "stms",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
@@ -21,6 +21,8 @@
 		"wrangler": "^4.62.0"
 	},
 	"engines": {
-		"node": "^20.19.0 || >=22.12.0"
-	}
+		"node": ">=24.8.0",
+		"pnpm": ">=10.0.0"
+	},
+	"packageManager": "pnpm@10.25.0"
 }

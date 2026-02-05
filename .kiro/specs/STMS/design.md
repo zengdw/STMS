@@ -2,7 +2,7 @@
 
 ## 概述
 
-定时任务管理系统是一个基于Cloudflare Worker的无服务器应用，支持两种类型的定时任务：保活任务和通知任务。系统采用现代Web架构，前端使用Vue.js构建用户界面，后端使用Cloudflare Worker处理API请求和定时任务执行，数据存储在Cloudflare D1 SQLite数据库中。
+定时任务管理系统是一个基于Cloudflare Worker的无服务器应用，支持两种类型的定时任务：保活任务和通知任务。系统采用现代Web架构，使用 `pnpm create cloudflare@latest stms --framework=vue` 创建的标准项目结构，前端使用Vue.js + Vite构建用户界面，后端使用Cloudflare Worker处理API请求和定时任务执行，数据存储在Cloudflare D1 SQLite数据库中。
 
 系统的核心价值在于提供一个简单、可靠的平台来管理各种定时任务，无论是保持应用活跃状态还是发送定时通知提醒。
 
@@ -52,51 +52,67 @@ graph TB
 
 ### 项目结构
 
-使用Wrangler进行开发，确保前后端代码分离：
+使用 `pnpm create cloudflare@latest stms --framework=vue` 创建的标准项目结构：
 
 ```
-project-root/
-├── wrangler.toml                 # Wrangler配置文件
-├── package.json                  # 项目依赖
-├── tsconfig.json                 # TypeScript配置文件
-├── src/                         # 后端代码
-│   ├── index.ts                 # Worker入口文件
-│   ├── routes/                  # API路由
+stms/                           # 项目根目录
+├── wrangler.jsonc              # Wrangler配置文件
+├── package.json                # 项目依赖和脚本
+├── pnpm-lock.yaml             # pnpm锁定文件
+├── tsconfig.json              # TypeScript配置
+├── vite.config.ts             # Vite配置（集成Cloudflare插件）
+├── server/                    # 后端Worker代码
+│   ├── index.ts               # Worker入口文件和API路由
+│   ├── routes/                # API路由模块
 │   │   ├── auth.ts
 │   │   ├── tasks.ts
 │   │   ├── logs.ts
 │   │   └── health.ts
-│   ├── services/                # 业务服务
+│   ├── services/              # 业务服务层
 │   │   ├── auth.service.ts
 │   │   ├── task.service.ts
 │   │   ├── notification.service.ts
 │   │   └── cron.service.ts
-│   ├── models/                  # 数据模型
+│   ├── models/                # 数据模型
 │   │   ├── user.model.ts
 │   │   ├── task.model.ts
 │   │   └── log.model.ts
-│   ├── utils/                   # 工具函数
+│   ├── utils/                 # 工具函数
 │   │   ├── database.ts
 │   │   ├── validation.ts
 │   │   └── response.ts
-│   └── types/                   # TypeScript类型定义
+│   └── types/                 # TypeScript类型定义
 │       └── index.ts
-├── frontend/                    # 前端代码
-│   ├── src/                     # Vue.js + TypeScript源码
-│   │   ├── main.ts
-│   │   ├── App.vue
-│   │   ├── components/
-│   │   ├── views/
-│   │   ├── router/
-│   │   ├── store/
-│   │   └── api/
-│   ├── public/
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
-├── migrations/                  # 数据库迁移文件
+├── src/                       # 前端Vue应用代码
+│   ├── main.ts                # Vue应用入口
+│   ├── App.vue                # 根组件
+│   ├── components/            # Vue组件
+│   │   ├── auth/
+│   │   ├── tasks/
+│   │   ├── logs/
+│   │   └── common/
+│   ├── views/                 # 页面组件
+│   │   ├── LoginView.vue
+│   │   ├── DashboardView.vue
+│   │   ├── TasksView.vue
+│   │   └── LogsView.vue
+│   ├── router/                # Vue Router配置
+│   │   └── index.ts
+│   ├── stores/                # Pinia状态管理
+│   │   ├── auth.ts
+│   │   ├── tasks.ts
+│   │   └── logs.ts
+│   ├── api/                   # API客户端
+│   │   └── client.ts
+│   ├── types/                 # 前端类型定义
+│   │   └── index.ts
+│   └── assets/                # 静态资源
+│       └── styles/
+├── public/                    # 公共静态文件
+│   └── favicon.ico
+├── migrations/                # 数据库迁移文件
 │   └── 0001_initial.sql
-└── tests/                       # 测试文件
+└── tests/                     # 测试文件
     ├── unit/
     ├── integration/
     └── property/
@@ -105,19 +121,21 @@ project-root/
 ### 部署架构
 
 系统完全部署在Cloudflare的全球边缘网络上：
-- **前端和后端**: 统一部署在Cloudflare Worker上，使用Wrangler进行开发和部署
-- **代码结构**: 前端代码在`frontend/`目录，后端代码在`src/`目录，确保清晰分离
-- **构建流程**: 前端构建后的静态文件嵌入到Worker中，由Worker统一提供服务
+- **统一项目结构**: 使用 `pnpm create cloudflare@latest stms --framework=vue` 创建的标准结构
+- **前端应用**: Vue.js应用位于 `src/` 目录，使用Vite构建
+- **后端Worker**: Cloudflare Worker代码位于 `server/` 目录
+- **构建和部署**: 使用Vite + Cloudflare插件进行统一构建和部署
+- **开发环境**: 本地开发时前后端同时运行，支持热重载
 - **数据库**: Cloudflare D1提供全球复制的SQLite数据库
 - **定时任务**: 使用Cloudflare Worker的Cron触发器
 - **通知服务**: 集成NotifyX平台(https://www.notifyx.cn/)进行多渠道通知
 
 这种架构的优势：
-- **开发体验**: 使用Wrangler提供的完整开发工具链
-- **代码组织**: 前后端代码清晰分离，便于维护
-- **简化部署**: 单一部署单元，减少配置复杂性
+- **标准化结构**: 遵循Cloudflare官方推荐的项目结构
+- **开发体验**: 使用Vite提供的完整开发工具链和热重载
+- **统一构建**: 前后端代码在同一项目中，简化构建和部署流程
 - **更好的性能**: 前后端在同一边缘节点，减少延迟
-- **成本效益**: 减少服务数量，降低运维成本
+- **成本效益**: 单一部署单元，降低运维成本
 - **全球分布**: 利用Cloudflare的全球边缘网络
 
 ## 组件和接口
@@ -204,18 +222,14 @@ interface LogFilter {
 ```typescript
 interface APIRouter {
   handleRequest(request: Request, env: Environment): Promise<Response>
-  routeStatic(request: Request): Promise<Response> // 处理静态文件请求
   routeAuth(request: Request): Promise<Response>
   routeTasks(request: Request): Promise<Response>
   routeLogs(request: Request): Promise<Response>
   routeHealth(request: Request): Promise<Response>
 }
 
-interface StaticFileHandler {
-  serveStaticFile(path: string): Promise<Response>
-  serveIndex(): Promise<Response> // 服务Vue.js应用的index.html
-  handleSPA(path: string): Promise<Response> // 处理单页应用路由
-}
+// 注意：在新的项目结构中，静态文件由Vite + Cloudflare插件自动处理
+// Worker主要负责API路由，静态文件服务由Cloudflare Workers Assets处理
 ```
 
 #### 2. 认证服务 (AuthenticationService)

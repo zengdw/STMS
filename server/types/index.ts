@@ -2,6 +2,7 @@
 export interface Environment {
   DB: D1Database;
   ENVIRONMENT: string;
+  JWT_SECRET: string;
 }
 
 // 用户模型

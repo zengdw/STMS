@@ -16,7 +16,11 @@
 		"db:create": "wrangler d1 create stms-db",
 		"db:migrate": "wrangler d1 migrations apply stms-db --local",
 		"db:migrate:prod": "wrangler d1 migrations apply stms-db",
-		"db:console": "wrangler d1 execute stms-db --local --command=\"SELECT name FROM sqlite_master WHERE type='table';\""
+		"db:console": "wrangler d1 execute stms-db --local --command=\"SELECT name FROM sqlite_master WHERE type='table';\"",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"vue": "^3.5.27",
@@ -27,11 +31,14 @@
 		"@tsconfig/node24": "^24.0.4",
 		"@types/node": "^24.10.9",
 		"@vitejs/plugin-vue": "^6.0.3",
+		"@vitest/ui": "^4.0.18",
 		"@vue/tsconfig": "^0.8.1",
+		"happy-dom": "^20.5.0",
 		"npm-run-all2": "^8.0.4",
 		"typescript": "~5.9.3",
 		"vite": "^7.3.1",
 		"vite-plugin-vue-devtools": "^8.0.5",
+		"vitest": "^4.0.18",
 		"vue-tsc": "^3.2.4",
 		"wrangler": "^4.63.0"
 	},

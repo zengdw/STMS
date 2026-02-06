@@ -12,7 +12,8 @@ vi.mock('../../server/utils/database', () => ({
     updateTask: vi.fn(),
     deleteTask: vi.fn(),
     createExecutionLog: vi.fn(),
-    getExecutionLogsByTaskId: vi.fn()
+    getExecutionLogsByTaskId: vi.fn(),
+    getNotificationSettingsByUserId: vi.fn()
   }
 }));
 
@@ -30,6 +31,10 @@ describe('TaskService', () => {
       ENVIRONMENT: 'test',
       JWT_SECRET: 'test-secret'
     };
+    
+    // 设置默认的 mock 返回值
+    vi.mocked(DatabaseUtils.getExecutionLogsByTaskId).mockResolvedValue({ success: true, data: [] });
+    vi.mocked(DatabaseUtils.getNotificationSettingsByUserId).mockResolvedValue({ success: true, data: null });
   });
 
   describe('createTask', () => {
@@ -485,6 +490,7 @@ describe('TaskService', () => {
           title: '测试',
           notifyxConfig: {
             apiKey: 'test-key',
+            title: '测试',
             content: '测试通知'
           }
         } as NotificationConfig,
@@ -509,11 +515,11 @@ describe('TaskService', () => {
       expect(result.success).toBe(true);
       expect(result.statusCode).toBe(200);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.notifyx.cn/v1/send',
+        'https://www.notifyx.cn/api/v1/send/test-key',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-key'
+            'Content-Type': 'application/json'
           })
         })
       );
@@ -527,8 +533,10 @@ describe('TaskService', () => {
         schedule: '0 9 * * *',
         config: {
           content: '测试通知',
+          title: '测试',
           notifyxConfig: {
             apiKey: 'test-key',
+            title: '测试',
             content: '测试通知'
           }
         } as NotificationConfig,
@@ -551,8 +559,8 @@ describe('TaskService', () => {
       const result = await TaskService.executeNotificationTask(mockEnv, task);
 
       expect(result.success).toBe(false);
-      expect(result.statusCode).toBe(400);
-      expect(result.error).toContain('通知发送失败');
+      expect(result.statusCode).toBe(500);
+      expect(result.error).toContain('NotifyX API错误');
     });
   });
 

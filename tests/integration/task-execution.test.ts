@@ -7,7 +7,9 @@ import { Task, KeepaliveConfig, NotificationConfig, Environment } from '../../se
 vi.mock('../../server/utils/database', () => ({
   DatabaseUtils: {
     createExecutionLog: vi.fn().mockResolvedValue({ success: true }),
-    updateTask: vi.fn().mockResolvedValue({ success: true })
+    updateTask: vi.fn().mockResolvedValue({ success: true }),
+    getExecutionLogsByTaskId: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getNotificationSettingsByUserId: vi.fn().mockResolvedValue({ success: true, data: null })
   }
 }));
 
@@ -246,13 +248,12 @@ describe('任务执行引擎集成测试', () => {
         type: 'notification',
         schedule: '0 9 * * *',
         config: {
-          message: '这是一条测试通知',
+          content: '这是一条测试通知',
           title: '测试标题',
-          priority: 'high',
           notifyxConfig: {
             apiKey: 'test-api-key-123',
-            channelId: 'channel-456',
-            message: '这是一条测试通知'
+            title: '测试标题',
+            content: '这是一条测试通知'
           }
         } as NotificationConfig,
         enabled: true,
@@ -271,12 +272,11 @@ describe('任务执行引擎集成测试', () => {
 
       expect(result.success).toBe(true);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.notifyx.cn/v1/send',
+        'https://www.notifyx.cn/api/v1/send/test-api-key-123',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer test-api-key-123'
+            'Content-Type': 'application/json'
           })
         })
       );
@@ -285,10 +285,8 @@ describe('任务执行引擎集成测试', () => {
       const fetchCall = vi.mocked(global.fetch).mock.calls[0];
       const requestBody = JSON.parse(fetchCall[1]?.body as string);
       expect(requestBody).toMatchObject({
-        channel_id: 'channel-456',
         title: '测试标题',
-        message: '这是一条测试通知',
-        priority: 'high'
+        content: '这是一条测试通知'
       });
     });
 
@@ -299,11 +297,12 @@ describe('任务执行引擎集成测试', () => {
         type: 'notification',
         schedule: '0 9 * * *',
         config: {
-          message: '测试通知',
+          content: '测试通知',
+          title: '测试',
           notifyxConfig: {
             apiKey: 'invalid-key',
-            channelId: 'channel-123',
-            message: '测试通知'
+            title: '测试',
+            content: '测试通知'
           }
         } as NotificationConfig,
         enabled: true,
@@ -321,8 +320,8 @@ describe('任务执行引擎集成测试', () => {
       const result = await TaskService.executeNotificationTask(mockEnv, task);
 
       expect(result.success).toBe(false);
-      expect(result.statusCode).toBe(401);
-      expect(result.error).toContain('通知发送失败');
+      expect(result.statusCode).toBe(500);
+      expect(result.error).toContain('NotifyX API错误');
     });
 
     it('应该记录通知发送的执行日志', async () => {
@@ -332,11 +331,12 @@ describe('任务执行引擎集成测试', () => {
         type: 'notification',
         schedule: '0 9 * * *',
         config: {
-          message: '测试通知',
+          content: '测试通知',
+          title: '测试',
           notifyxConfig: {
             apiKey: 'test-key',
-            channelId: 'channel-123',
-            message: '测试通知'
+            title: '测试',
+            content: '测试通知'
           }
         } as NotificationConfig,
         enabled: true,

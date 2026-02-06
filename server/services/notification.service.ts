@@ -269,7 +269,7 @@ export class NotificationService {
     // 消息标题
     if (!config.title || typeof config.title !== 'string' || config.title.trim().length === 0) {
       errors.push('NotifyX消息标题不能为空');
-    } else if (config.content.length > 100) {
+    } else if (config.title.length > 100) {
       errors.push('NotifyX消息标题长度不能超过100字符');
     }
 

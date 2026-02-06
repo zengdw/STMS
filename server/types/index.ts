@@ -3,6 +3,7 @@ export interface Environment {
   DB: D1Database;
   ENVIRONMENT: string;
   JWT_SECRET: string;
+  SYSTEM_NOTIFYX_API_KEY?: string; // 系统级别的NotifyX API密钥，用于系统异常通知
 }
 
 // 用户模型

@@ -34,6 +34,10 @@ export default {
 				return await HealthRoutes.status(request, env);
 			}
 
+			if (pathname === '/api/metrics') {
+				return await HealthRoutes.metrics(request, env);
+			}
+
 			if (pathname === '/api/version') {
 				return await HealthRoutes.version(request, env);
 			}

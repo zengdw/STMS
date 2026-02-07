@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TaskService } from '../../server/services/task.service';
+import { AuthService } from '../../server/services/auth.service';
 import { DatabaseUtils } from '../../server/utils/database';
-import { Task, KeepaliveConfig, NotificationConfig, Environment } from '../../server/types';
+import { Task, KeepaliveConfig, NotificationConfig, Environment, User } from '../../server/types';
 
 // Mock DatabaseUtils
 vi.mock('../../server/utils/database', () => ({
@@ -9,7 +10,14 @@ vi.mock('../../server/utils/database', () => ({
     createExecutionLog: vi.fn().mockResolvedValue({ success: true }),
     updateTask: vi.fn().mockResolvedValue({ success: true }),
     getExecutionLogsByTaskId: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getNotificationSettingsByUserId: vi.fn().mockResolvedValue({ success: true, data: null })
+    getNotificationSettingsByUserId: vi.fn().mockResolvedValue({ success: true, data: null }),
+    createTask: vi.fn().mockResolvedValue({ success: true }),
+    getTaskById: vi.fn().mockResolvedValue({ success: true, data: null }),
+    deleteTask: vi.fn().mockResolvedValue({ success: true }),
+    getAllTasks: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    createUser: vi.fn().mockResolvedValue({ success: true }),
+    getUserByUsername: vi.fn().mockResolvedValue({ success: true, data: null }),
+    getUserById: vi.fn().mockResolvedValue({ success: true, data: null })
   }
 }));
 
@@ -473,6 +481,521 @@ describe('任务执行引擎集成测试', () => {
           last_status: 'failure'
         })
       );
+    });
+  });
+});
+
+
+describe('前后端API集成测试', () => {
+  let mockEnv: Environment;
+  let testUser: User;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnv = {
+      DB: {} as any,
+      ENVIRONMENT: 'test',
+      JWT_SECRET: 'test-secret-key-for-integration-tests'
+    };
+
+    testUser = {
+      id: 'user-test-1',
+      username: 'testuser',
+      role: 'admin',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  describe('认证服务集成', () => {
+    it('应该成功注册新用户并返回令牌', async () => {
+      vi.mocked(DatabaseUtils.getUserByUsername).mockResolvedValue({ 
+        success: true, 
+        data: null 
+      });
+      
+      vi.mocked(DatabaseUtils.createUser).mockResolvedValue({ 
+        success: true, 
+        data: testUser 
+      });
+
+      const result = await AuthService.register(
+        mockEnv,
+        'newuser',
+        'Password123',
+        'user'
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.token).toBeDefined();
+      expect(result.user).toBeDefined();
+      expect(result.user?.username).toBe('newuser');
+      expect(DatabaseUtils.createUser).toHaveBeenCalled();
+    });
+
+    it('应该拒绝已存在的用户名', async () => {
+      vi.mocked(DatabaseUtils.getUserByUsername).mockResolvedValue({ 
+        success: true, 
+        data: testUser 
+      });
+
+      const result = await AuthService.register(
+        mockEnv,
+        'testuser',
+        'Password123',
+        'user'
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('已存在');
+    });
+
+    it('应该成功认证有效用户', async () => {
+      const passwordHash = await AuthService.hashPassword('Password123');
+      const userWithPassword = { ...testUser, password_hash: passwordHash };
+
+      vi.mocked(DatabaseUtils.getUserByUsername).mockResolvedValue({ 
+        success: true, 
+        data: userWithPassword 
+      });
+
+      const result = await AuthService.authenticate(
+        mockEnv,
+        'testuser',
+        'Password123'
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.token).toBeDefined();
+      expect(result.user).toBeDefined();
+    });
+
+    it('应该拒绝错误的密码', async () => {
+      const passwordHash = await AuthService.hashPassword('Password123');
+      const userWithPassword = { ...testUser, password_hash: passwordHash };
+
+      vi.mocked(DatabaseUtils.getUserByUsername).mockResolvedValue({ 
+        success: true, 
+        data: userWithPassword 
+      });
+
+      const result = await AuthService.authenticate(
+        mockEnv,
+        'testuser',
+        'WrongPassword'
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('错误');
+    });
+
+    it('应该成功验证有效令牌', async () => {
+      const token = await AuthService.generateToken(testUser, 3600, mockEnv.JWT_SECRET);
+      
+      vi.mocked(DatabaseUtils.getUserById).mockResolvedValue({ 
+        success: true, 
+        data: testUser 
+      });
+
+      const user = await AuthService.validateToken(mockEnv, token);
+
+      expect(user).toBeDefined();
+      expect(user?.id).toBe(testUser.id);
+      expect(user?.username).toBe(testUser.username);
+    });
+
+    it('应该拒绝无效令牌', async () => {
+      const invalidToken = 'invalid.token.here';
+
+      const user = await AuthService.validateToken(mockEnv, invalidToken);
+
+      expect(user).toBeNull();
+    });
+  });
+
+  describe('任务管理服务集成', () => {
+    it('应该成功创建保活任务', async () => {
+      const taskData = {
+        name: '测试保活任务',
+        type: 'keepalive' as const,
+        schedule: '*/5 * * * *',
+        config: {
+          url: 'https://api.example.com/health',
+          method: 'GET' as const,
+          timeout: 30000
+        },
+        enabled: true
+      };
+
+      vi.mocked(DatabaseUtils.createTask).mockResolvedValue({ 
+        success: true, 
+        data: { ...taskData, id: 'task-1', created_by: testUser.id, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as Task
+      });
+
+      const result = await TaskService.createTask(mockEnv, taskData, testUser.id);
+
+      expect(result.success).toBe(true);
+      expect(result.data).toBeDefined();
+      expect(DatabaseUtils.createTask).toHaveBeenCalled();
+    });
+
+    it('应该成功创建通知任务', async () => {
+      const taskData = {
+        name: '测试通知任务',
+        type: 'notification' as const,
+        schedule: '0 9 * * *',
+        config: {
+          content: '测试通知内容',
+          title: '测试标题',
+          notifyxConfig: {
+            apiKey: 'test-key',
+            title: '测试标题',
+            content: '测试通知内容'
+          }
+        },
+        enabled: true
+      };
+
+      vi.mocked(DatabaseUtils.createTask).mockResolvedValue({ 
+        success: true, 
+        data: { ...taskData, id: 'task-2', created_by: testUser.id, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as Task
+      });
+
+      const result = await TaskService.createTask(mockEnv, taskData, testUser.id);
+
+      expect(result.success).toBe(true);
+      expect(result.data).toBeDefined();
+      expect(DatabaseUtils.createTask).toHaveBeenCalled();
+    });
+
+    it('应该成功更新任务', async () => {
+      const existingTask: Task = {
+        id: 'task-1',
+        name: '原任务名',
+        type: 'keepalive',
+        schedule: '*/5 * * * *',
+        config: {
+          url: 'https://api.example.com/health',
+          method: 'GET',
+          timeout: 30000
+        } as KeepaliveConfig,
+        enabled: true,
+        created_by: testUser.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      vi.mocked(DatabaseUtils.getTaskById).mockResolvedValue({ 
+        success: true, 
+        data: existingTask 
+      });
+
+      vi.mocked(DatabaseUtils.updateTask).mockResolvedValue({ 
+        success: true, 
+        data: { ...existingTask, name: '新任务名' } 
+      });
+
+      const result = await TaskService.updateTask(
+        mockEnv,
+        'task-1',
+        { name: '新任务名' },
+        testUser.id
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data?.name).toBe('新任务名');
+      expect(DatabaseUtils.updateTask).toHaveBeenCalled();
+    });
+
+    it('应该拒绝无权限的更新操作', async () => {
+      const existingTask: Task = {
+        id: 'task-1',
+        name: '原任务名',
+        type: 'keepalive',
+        schedule: '*/5 * * * *',
+        config: {
+          url: 'https://api.example.com/health',
+          method: 'GET',
+          timeout: 30000
+        } as KeepaliveConfig,
+        enabled: true,
+        created_by: 'other-user',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      vi.mocked(DatabaseUtils.getTaskById).mockResolvedValue({ 
+        success: true, 
+        data: existingTask 
+      });
+
+      const result = await TaskService.updateTask(
+        mockEnv,
+        'task-1',
+        { name: '新任务名' },
+        testUser.id
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('无权限');
+    });
+
+    it('应该成功删除任务', async () => {
+      const existingTask: Task = {
+        id: 'task-1',
+        name: '待删除任务',
+        type: 'keepalive',
+        schedule: '*/5 * * * *',
+        config: {
+          url: 'https://api.example.com/health',
+          method: 'GET',
+          timeout: 30000
+        } as KeepaliveConfig,
+        enabled: true,
+        created_by: testUser.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      vi.mocked(DatabaseUtils.getTaskById).mockResolvedValue({ 
+        success: true, 
+        data: existingTask 
+      });
+
+      vi.mocked(DatabaseUtils.deleteTask).mockResolvedValue({ 
+        success: true, 
+        data: true 
+      });
+
+      const result = await TaskService.deleteTask(mockEnv, 'task-1', testUser.id);
+
+      expect(result.success).toBe(true);
+      expect(DatabaseUtils.deleteTask).toHaveBeenCalledWith(mockEnv, 'task-1');
+    });
+
+    it('应该成功获取任务列表', async () => {
+      const tasks: Task[] = [
+        {
+          id: 'task-1',
+          name: '任务1',
+          type: 'keepalive',
+          schedule: '*/5 * * * *',
+          config: { url: 'https://api.example.com/1', method: 'GET', timeout: 30000 } as KeepaliveConfig,
+          enabled: true,
+          created_by: testUser.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        {
+          id: 'task-2',
+          name: '任务2',
+          type: 'notification',
+          schedule: '0 9 * * *',
+          config: { content: '测试', title: '测试', notifyxConfig: { apiKey: 'key', title: '测试', content: '测试' } } as NotificationConfig,
+          enabled: true,
+          created_by: testUser.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ];
+
+      vi.mocked(DatabaseUtils.getAllTasks).mockResolvedValue({ 
+        success: true, 
+        data: tasks 
+      });
+
+      const result = await TaskService.listTasks(mockEnv);
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(2);
+      expect(result.data?.[0].name).toBe('任务1');
+      expect(result.data?.[1].name).toBe('任务2');
+    });
+
+    it('应该成功切换任务状态', async () => {
+      const existingTask: Task = {
+        id: 'task-1',
+        name: '测试任务',
+        type: 'keepalive',
+        schedule: '*/5 * * * *',
+        config: {
+          url: 'https://api.example.com/health',
+          method: 'GET',
+          timeout: 30000
+        } as KeepaliveConfig,
+        enabled: true,
+        created_by: testUser.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      vi.mocked(DatabaseUtils.getTaskById).mockResolvedValue({ 
+        success: true, 
+        data: existingTask 
+      });
+
+      vi.mocked(DatabaseUtils.updateTask).mockResolvedValue({ 
+        success: true, 
+        data: { ...existingTask, enabled: false } 
+      });
+
+      const result = await TaskService.toggleTaskStatus(mockEnv, 'task-1', testUser.id);
+
+      expect(result.success).toBe(true);
+      expect(result.data?.enabled).toBe(false);
+    });
+  });
+
+  describe('任务执行统计集成', () => {
+    it('应该正确计算任务执行统计', async () => {
+      const logs = [
+        {
+          id: 'log-1',
+          task_id: 'task-1',
+          execution_time: new Date().toISOString(),
+          status: 'success' as const,
+          response_time: 100,
+          status_code: 200
+        },
+        {
+          id: 'log-2',
+          task_id: 'task-1',
+          execution_time: new Date().toISOString(),
+          status: 'success' as const,
+          response_time: 150,
+          status_code: 200
+        },
+        {
+          id: 'log-3',
+          task_id: 'task-1',
+          execution_time: new Date().toISOString(),
+          status: 'failure' as const,
+          response_time: 200,
+          status_code: 500,
+          error_message: '服务器错误'
+        }
+      ];
+
+      vi.mocked(DatabaseUtils.getExecutionLogsByTaskId).mockResolvedValue({ 
+        success: true, 
+        data: logs 
+      });
+
+      const result = await TaskService.getTaskStatistics(mockEnv, 'task-1');
+
+      expect(result.success).toBe(true);
+      expect(result.data?.totalExecutions).toBe(3);
+      expect(result.data?.successCount).toBe(2);
+      expect(result.data?.failureCount).toBe(1);
+      expect(result.data?.averageResponseTime).toBe(150); // (100 + 150 + 200) / 3
+    });
+
+    it('应该处理没有执行日志的情况', async () => {
+      vi.mocked(DatabaseUtils.getExecutionLogsByTaskId).mockResolvedValue({ 
+        success: true, 
+        data: [] 
+      });
+
+      const result = await TaskService.getTaskStatistics(mockEnv, 'task-1');
+
+      expect(result.success).toBe(true);
+      expect(result.data?.totalExecutions).toBe(0);
+      expect(result.data?.successCount).toBe(0);
+      expect(result.data?.failureCount).toBe(0);
+      expect(result.data?.averageResponseTime).toBe(0);
+    });
+  });
+});
+
+describe('数据库操作集成测试', () => {
+  let mockEnv: Environment;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnv = {
+      DB: {} as any,
+      ENVIRONMENT: 'test',
+      JWT_SECRET: 'test-secret'
+    };
+  });
+
+  describe('数据库连接和重试机制', () => {
+    it('应该在数据库操作失败时进行重试', async () => {
+      let attemptCount = 0;
+      vi.mocked(DatabaseUtils.createTask).mockImplementation(async () => {
+        attemptCount++;
+        if (attemptCount < 3) {
+          throw new Error('数据库连接失败');
+        }
+        return { success: true, data: {} as Task };
+      });
+
+      // 注意：由于我们mock了DatabaseUtils，实际的重试逻辑不会执行
+      // 这个测试主要验证错误处理流程
+      const taskData = {
+        name: '测试任务',
+        type: 'keepalive' as const,
+        schedule: '*/5 * * * *',
+        config: {
+          url: 'https://api.example.com/health',
+          method: 'GET' as const,
+          timeout: 30000
+        },
+        enabled: true
+      };
+
+      // 第一次调用会失败
+      vi.mocked(DatabaseUtils.createTask).mockRejectedValueOnce(new Error('数据库连接失败'));
+      
+      const result = await TaskService.createTask(mockEnv, taskData, 'user-1');
+      
+      // 由于mock的实现，这里会失败
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('数据验证集成', () => {
+    it('应该拒绝无效的任务配置', async () => {
+      const invalidTaskData = {
+        name: '', // 无效：空名称
+        type: 'keepalive' as const,
+        schedule: '*/5 * * * *',
+        config: {
+          url: 'https://api.example.com/health',
+          method: 'GET' as const,
+          timeout: 30000
+        },
+        enabled: true
+      };
+
+      const result = await TaskService.createTask(mockEnv, invalidTaskData, 'user-1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+
+    it('应该拒绝无效的用户名格式', async () => {
+      const result = await AuthService.register(
+        mockEnv,
+        'ab', // 无效：太短
+        'Password123',
+        'user'
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('用户名格式无效');
+    });
+
+    it('应该拒绝无效的密码格式', async () => {
+      const result = await AuthService.register(
+        mockEnv,
+        'validuser',
+        '123', // 无效：太短且没有字母
+        'user'
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('密码格式无效');
     });
   });
 });

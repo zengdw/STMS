@@ -1,5 +1,6 @@
 import { Environment, ApiResponse, LoginCredentials } from '../types/index.js';
 import { AuthService } from '../services/auth.service.js';
+import { ResponseUtils } from '../utils/response.js';
 
 /**
  * 认证路由处理器
@@ -13,45 +14,24 @@ export class AuthRoutes {
       const body = await request.json() as LoginCredentials;
       
       if (!body.username || !body.password) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: '用户名和密码不能为空'
-        } as ApiResponse), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return ResponseUtils.error('用户名和密码不能为空', 400);
       }
 
       const result = await AuthService.authenticate(env, body.username, body.password);
       
       if (!result.success) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: result.error
-        } as ApiResponse), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return ResponseUtils.unauthorized(result.error);
       }
 
-      return new Response(JSON.stringify({
+      return ResponseUtils.json({
         success: true,
         data: {
           token: result.token,
           user: result.user
         }
-      } as ApiResponse), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 200);
     } catch (error) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '登录请求处理失败'
-      } as ApiResponse), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.serverError('登录请求处理失败');
     }
   }
 
@@ -63,45 +43,24 @@ export class AuthRoutes {
       const body = await request.json() as { username: string; password: string; role?: 'admin' | 'user' };
       
       if (!body.username || !body.password) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: '用户名和密码不能为空'
-        } as ApiResponse), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return ResponseUtils.error('用户名和密码不能为空', 400);
       }
 
       const result = await AuthService.register(env, body.username, body.password, body.role);
       
       if (!result.success) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: result.error
-        } as ApiResponse), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return ResponseUtils.error(result.error || '注册失败', 400);
       }
 
-      return new Response(JSON.stringify({
+      return ResponseUtils.json({
         success: true,
         data: {
           token: result.token,
           user: result.user
         }
-      } as ApiResponse), {
-        status: 201,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 201);
     } catch (error) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '注册请求处理失败'
-      } as ApiResponse), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.serverError('注册请求处理失败');
     }
   }
 
@@ -113,42 +72,21 @@ export class AuthRoutes {
       const token = AuthService.extractTokenFromRequest(request);
       
       if (!token) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: '缺少认证令牌'
-        } as ApiResponse), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return ResponseUtils.unauthorized('缺少认证令牌');
       }
 
       const newToken = await AuthService.refreshToken(env, token);
       
       if (!newToken) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: '令牌刷新失败'
-        } as ApiResponse), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return ResponseUtils.unauthorized('令牌刷新失败');
       }
 
-      return new Response(JSON.stringify({
+      return ResponseUtils.json({
         success: true,
         data: { token: newToken }
-      } as ApiResponse), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 200);
     } catch (error) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '令牌刷新请求处理失败'
-      } as ApiResponse), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.serverError('令牌刷新请求处理失败');
     }
   }
 
@@ -160,30 +98,15 @@ export class AuthRoutes {
       const user = await AuthService.authenticateRequest(env, request);
       
       if (!user) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: '未授权'
-        } as ApiResponse), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return ResponseUtils.unauthorized('未授权');
       }
 
-      return new Response(JSON.stringify({
+      return ResponseUtils.json({
         success: true,
         data: { user }
-      } as ApiResponse), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 200);
     } catch (error) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '获取用户信息失败'
-      } as ApiResponse), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.serverError('获取用户信息失败');
     }
   }
 }

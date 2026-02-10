@@ -2,6 +2,7 @@ import { Environment, ApiResponse } from '../types/index.js';
 import { DatabaseUtils } from '../utils/database.js';
 import { LogService } from '../services/log.service.js';
 import { NotificationService } from '../services/notification.service.js';
+import { ResponseUtils } from '../utils/response.js';
 
 /**
  * 系统指标接口
@@ -72,22 +73,16 @@ export class HealthRoutes {
         }
       };
 
-      return new Response(JSON.stringify(response), {
-        status: healthCheck.healthy ? 200 : 503,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.json(response, healthCheck.healthy ? 200 : 503);
     } catch (error) {
-      return new Response(JSON.stringify({
+      return ResponseUtils.json({
         success: false,
         data: {
           status: 'unhealthy',
           timestamp: new Date().toISOString(),
           error: error instanceof Error ? error.message : '未知错误'
         }
-      } as ApiResponse), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 503);
     }
   }
 
@@ -117,10 +112,7 @@ export class HealthRoutes {
         }
       };
 
-      return new Response(JSON.stringify(response), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.json(response, 200);
     } catch (error) {
       // 记录错误
       await LogService.logError(
@@ -130,13 +122,7 @@ export class HealthRoutes {
         error instanceof Error ? error.stack : undefined
       );
 
-      return new Response(JSON.stringify({
-        success: false,
-        error: '获取系统状态失败'
-      } as ApiResponse), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.error('获取系统状态失败', 500);
     }
   }
 
@@ -154,10 +140,7 @@ export class HealthRoutes {
       }
     };
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return ResponseUtils.json(response, 200);
   }
 
   /**
@@ -172,18 +155,9 @@ export class HealthRoutes {
         data: metrics
       };
 
-      return new Response(JSON.stringify(response), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.json(response, 200);
     } catch (error) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '获取系统指标失败'
-      } as ApiResponse), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return ResponseUtils.error('获取系统指标失败', 500);
     }
   }
 

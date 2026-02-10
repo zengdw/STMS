@@ -1,5 +1,6 @@
 import { Environment, NotificationSettings } from '../types/index.js';
 import { AuthService } from '../services/auth.service.js';
+import { NotificationService } from '../services/notification.service.js';
 import { ResponseUtils } from '../utils/response.js';
 import { DatabaseUtils } from '../utils/database.js';
 import { NotificationSettingsModel } from '../models/notification-settings.model.js';
@@ -141,6 +142,50 @@ export class SettingsRoutes {
             }, 200);
         } catch (error) {
             return ResponseUtils.serverError('获取已启用通知渠道请求处理失败');
+        }
+    }
+
+    /**
+     * 测试通知
+     */
+    static async testNotification(request: Request, env: Environment): Promise<Response> {
+        try {
+            const user = await AuthService.authenticateRequest(env, request);
+            if (!user) {
+                return ResponseUtils.unauthorized('未授权');
+            }
+
+            // 获取用户当前的通知设置
+            const result = await DatabaseUtils.getNotificationSettingsByUserId(env, user.id);
+
+            if (!result.success || !result.data) {
+                return ResponseUtils.error('未找到通知设置，请先配置通知', 400);
+            }
+
+            // 解析请求体获取 channel 参数
+            let channel: 'email' | 'webhook' | 'notifyx' | undefined;
+            try {
+                const body = await request.json() as any;
+                if (body && body.channel) {
+                    channel = body.channel;
+                }
+            } catch (e) {
+                // Ignore json parse error, channel remains undefined
+            }
+
+            // 发送测试通知
+            const testResult = await NotificationService.testNotification(env, result.data, channel);
+
+            if (!testResult.success) {
+                return ResponseUtils.error(testResult.error || '测试通知发送失败', 400);
+            }
+
+            return ResponseUtils.json({
+                success: true,
+                message: '测试通知已发送'
+            }, 200);
+        } catch (error) {
+            return ResponseUtils.serverError('测试通知请求处理失败');
         }
     }
 }

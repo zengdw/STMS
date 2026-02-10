@@ -241,6 +241,14 @@ export const settingsApi = {
   // 获取已启用的通知渠道
   async getEnabledChannels(): Promise<ApiResponse<string[]>> {
     return request<string[]>('/settings/notifications/channels')
+  },
+
+  // 测试通知
+  testNotification: async (channel?: 'email' | 'webhook' | 'notifyx'): Promise<ApiResponse<any>> => {
+    return request<any>('/settings/notifications/test', {
+      method: 'POST',
+      body: JSON.stringify({ channel })
+    })
   }
 }
 

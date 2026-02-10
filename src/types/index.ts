@@ -24,12 +24,25 @@ export interface AuthResult {
 export type TaskType = 'keepalive' | 'notification'
 export type TaskStatus = 'success' | 'failure'
 
+export interface ExecutionRule {
+  type: 'interval'
+  unit: 'day' | 'month' | 'year'
+  interval: number
+  startDate: string
+  endDate?: string
+  reminderAdvanceValue?: number
+  reminderAdvanceUnit?: 'day' | 'hour'
+  autoRenew?: boolean
+  nextDueDate?: string
+}
+
 export interface KeepaliveConfig {
   url: string
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   headers?: Record<string, string>
   body?: string
   timeout: number
+  executionRule?: ExecutionRule
 }
 
 export interface NotifyXConfig {
@@ -46,6 +59,7 @@ export interface NotificationConfig {
   title?: string
   priority?: 'low' | 'normal' | 'high'
   notifyxConfig: NotifyXConfig
+  executionRule?: ExecutionRule
 }
 
 export interface Task {
@@ -118,6 +132,21 @@ export interface ApiResponse<T = any> {
 }
 
 // 通知设置类型
+export interface ExecutionRule {
+  type: 'interval'
+  unit: 'day' | 'month' | 'year'
+  interval: number
+  startDate: string
+  endDate?: string
+  reminderAdvanceValue?: number
+  reminderAdvanceUnit?: 'day' | 'hour'
+  autoRenew?: boolean
+  nextDueDate?: string
+}
+
+// ... existing code ...
+
+// NotificationSettings
 export interface NotificationSettings {
   id: string
   userId: string
@@ -129,6 +158,7 @@ export interface NotificationSettings {
   notifyxEnabled: boolean
   notifyxApiKey?: string
   failureThreshold: number
+  allowedTimeSlots?: string
   createdAt: string
   updatedAt: string
 }

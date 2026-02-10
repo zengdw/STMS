@@ -31,6 +31,7 @@ export const staticRoutes: Record<string, RouteHandler> = {
     'GET:/api/settings/notifications': (req, env) => SettingsRoutes.getNotificationSettings(req, env),
     'PUT:/api/settings/notifications': (req, env) => SettingsRoutes.updateNotificationSettings(req, env),
     'GET:/api/settings/notifications/channels': (req, env) => SettingsRoutes.getEnabledChannels(req, env),
+    'POST:/api/settings/notifications/test': (req, env) => SettingsRoutes.testNotification(req, env),
 
     // 日志
     'GET:/api/logs': (req, env) => LogRoutes.list(req, env),

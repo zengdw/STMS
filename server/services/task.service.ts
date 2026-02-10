@@ -50,7 +50,7 @@ export class TaskService {
 
       // 保存到数据库
       const result = await DatabaseUtils.createTask(env, task);
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -100,7 +100,7 @@ export class TaskService {
     try {
       // 获取现有任务
       const existingResult = await DatabaseUtils.getTaskById(env, taskId);
-      
+
       if (!existingResult.success || !existingResult.data) {
         return { success: false, error: '任务不存在' };
       }
@@ -112,7 +112,7 @@ export class TaskService {
 
       // 更新任务
       const result = await DatabaseUtils.updateTask(env, taskId, updateData);
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -160,7 +160,7 @@ export class TaskService {
     try {
       // 获取现有任务
       const existingResult = await DatabaseUtils.getTaskById(env, taskId);
-      
+
       if (!existingResult.success || !existingResult.data) {
         return { success: false, error: '任务不存在' };
       }
@@ -172,7 +172,7 @@ export class TaskService {
 
       // 删除任务
       const result = await DatabaseUtils.deleteTask(env, taskId);
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -266,7 +266,7 @@ export class TaskService {
     try {
       // 获取现有任务
       const existingResult = await DatabaseUtils.getTaskById(env, taskId);
-      
+
       if (!existingResult.success || !existingResult.data) {
         return { success: false, error: '任务不存在' };
       }
@@ -279,7 +279,7 @@ export class TaskService {
       // 切换状态
       const newEnabled = !existingResult.data.enabled;
       const result = await DatabaseUtils.updateTask(env, taskId, { enabled: newEnabled });
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -304,7 +304,7 @@ export class TaskService {
     task: Task
   ): Promise<ExecutionResult> {
     const startTime = Date.now();
-    
+
     try {
       // 验证任务类型
       if (task.type !== 'keepalive') {
@@ -312,7 +312,7 @@ export class TaskService {
       }
 
       const config = task.config as KeepaliveConfig;
-      
+
       // 设置请求选项
       const requestOptions: RequestInit = {
         method: config.method,
@@ -391,7 +391,7 @@ export class TaskService {
     task: Task
   ): Promise<ExecutionResult> {
     const startTime = Date.now();
-    
+
     try {
       // 验证任务类型
       if (task.type !== 'notification') {
@@ -399,17 +399,29 @@ export class TaskService {
       }
 
       const config = task.config as NotificationConfig;
-      
-      // 构建完整的NotifyX配置
-      const notifyxConfig: NotifyXConfig = {
-        apiKey: config.notifyxConfig.apiKey,
-        message: config.message,
-        title: config.title || '系统通知',
-      };
-      
-      // 调用通知服务发送通知
-      const result = await NotificationService.sendNotifyXMessage(notifyxConfig);
-      
+
+      // 获取任务创建者的通知设置
+      const settingsResult = await DatabaseUtils.getNotificationSettingsByUserId(env, task.created_by);
+
+      let result;
+
+      if (!settingsResult.success || !settingsResult.data) {
+        result = { success: false, error: '未找到用户的通知设置' };
+      } else {
+        // 调用通知服务发送通知
+        result = await NotificationService.sendNotification(
+          env,
+          settingsResult.data,
+          config.title || '系统通知',
+          config.message,
+          {
+            type: 'notification_task',
+            task_id: task.id,
+            task_name: task.name
+          }
+        );
+      }
+
       const responseTime = Date.now() - startTime;
 
       // 记录执行结果
@@ -425,10 +437,17 @@ export class TaskService {
       await this.logExecution(env, task.id, executionResult);
 
       // 更新任务的最后执行状态
-      await DatabaseUtils.updateTask(env, task.id, {
-        last_executed: new Date().toISOString(),
+      const updateData: Partial<Task> = {
+        last_executed: executionResult.timestamp.toISOString(),
         last_status: executionResult.success ? 'success' : 'failure'
-      });
+      };
+
+      // Handle Auto Renew
+      if (executionResult.success && task.config.executionRule?.autoRenew) {
+        this.handleAutoRenew(task, updateData);
+      }
+
+      await DatabaseUtils.updateTask(env, task.id, updateData);
 
       return executionResult;
     } catch (error) {
@@ -451,6 +470,50 @@ export class TaskService {
 
       return executionResult;
     }
+  }
+
+  /**
+   * 处理任务自动续期
+   */
+  private static handleAutoRenew(task: Task, updateData: Partial<Task>) {
+    const rule = task.config.executionRule!;
+    const startDate = new Date(rule.startDate);
+    const interval = rule.interval;
+    const unit = rule.unit;
+
+    let nextStart = new Date(startDate);
+    if (unit === 'day') {
+      nextStart.setDate(nextStart.getDate() + interval);
+    } else if (unit === 'month') {
+      nextStart.setMonth(nextStart.getMonth() + interval);
+    } else if (unit === 'year') {
+      nextStart.setFullYear(nextStart.getFullYear() + interval);
+    }
+
+    // Update rule in config
+    const newRule = { ...rule, startDate: nextStart.toISOString() };
+
+    if (rule.endDate) {
+      const endDate = new Date(rule.endDate);
+      let nextEnd = new Date(endDate);
+      if (unit === 'day') {
+        nextEnd.setDate(nextEnd.getDate() + interval);
+      } else if (unit === 'month') {
+        nextEnd.setMonth(nextEnd.getMonth() + interval);
+      } else if (unit === 'year') {
+        nextEnd.setFullYear(nextEnd.getFullYear() + interval);
+      }
+      newRule.endDate = nextEnd.toISOString();
+    }
+
+    // Merge into updateData
+    // Note: We need to be careful not to overwrite other config updates if any (though currently we only update last_executed/status)
+    // We need to cast updateData to any or properly type it to include config update
+    // Since `updateTask` takes Partial<Task>, and Task has config, this is valid.
+    // However, task.config is a JSON object in DB, but typed here.
+    // We should update the whole config object.
+    const newConfig = { ...task.config, executionRule: newRule };
+    (updateData as any).config = newConfig;
   }
 
   /**
@@ -504,7 +567,7 @@ export class TaskService {
     try {
       // 获取任务的所有执行日志
       const logsResult = await DatabaseUtils.getExecutionLogsByTaskId(env, taskId, 1000);
-      
+
       if (!logsResult.success || !logsResult.data) {
         return { success: false, error: '获取执行日志失败' };
       }
@@ -513,12 +576,12 @@ export class TaskService {
       const totalExecutions = logs.length;
       const successCount = logs.filter(log => log.status === 'success').length;
       const failureCount = logs.filter(log => log.status === 'failure').length;
-      
+
       // 计算平均响应时间
       const responseTimes = logs
         .filter(log => log.response_time !== undefined && log.response_time !== null)
         .map(log => log.response_time!);
-      
+
       const averageResponseTime = responseTimes.length > 0
         ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
         : 0;

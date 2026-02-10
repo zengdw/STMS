@@ -2,7 +2,7 @@
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>{{ isEdit ? '编辑任务' : '创建任务' }}</h2>
+        <h2>{{ isEdit ? "编辑任务" : "创建任务" }}</h2>
         <button @click="$emit('close')" class="close-button">&times;</button>
       </div>
 
@@ -28,7 +28,21 @@
         </div>
 
         <div class="form-group">
-          <label for="schedule">执行计划 (Cron表达式) *</label>
+          <label>执行计划类型 *</label>
+          <div class="schedule-type-selector">
+            <label class="radio-label">
+              <input type="radio" v-model="scheduleType" value="cron" />
+              <span>Cron 表达式</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" v-model="scheduleType" value="periodic" />
+              <span>周期性执行</span>
+            </label>
+          </div>
+        </div>
+
+        <div v-if="scheduleType === 'cron'" class="form-group">
+          <label for="schedule">Cron 表达式 *</label>
           <input
             id="schedule"
             v-model="formData.schedule"
@@ -37,6 +51,84 @@
             required
           />
           <small>格式: 秒 分 时 日 月 周</small>
+        </div>
+
+        <div v-if="scheduleType === 'periodic'" class="periodic-config">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="startDate">开始日期 *</label>
+              <input
+                id="startDate"
+                v-model="periodicConfig.startDate"
+                type="date"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="endDate">结束日期 (可选)</label>
+              <input
+                id="endDate"
+                v-model="periodicConfig.endDate"
+                type="date"
+              />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="interval">间隔数值 *</label>
+              <input
+                id="interval"
+                v-model.number="periodicConfig.interval"
+                type="number"
+                min="1"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="unit">间隔单位 *</label>
+              <select id="unit" v-model="periodicConfig.unit" required>
+                <option value="day">天</option>
+                <option value="month">月</option>
+                <option value="year">年</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>提前提醒</label>
+              <div class="input-group">
+                <input
+                  type="number"
+                  v-model.number="periodicConfig.reminderAdvanceValue"
+                  min="1"
+                  placeholder="数值"
+                  style="width: 80px"
+                />
+                <select
+                  v-model="periodicConfig.reminderAdvanceUnit"
+                  style="width: 80px"
+                >
+                  <option value="hour">小时</option>
+                  <option value="day">天</option>
+                </select>
+              </div>
+            </div>
+            <div
+              class="form-group"
+              style="
+                justify-content: center;
+                align-items: center;
+                display: flex;
+              "
+            >
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="periodicConfig.autoRenew" />
+                <span>自动续期</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">
@@ -129,39 +221,12 @@
             ></textarea>
           </div>
 
-          <!-- 通知方式选择 -->
-          <h4>通知方式</h4>
-          <div v-if="enabledChannels.length === 0" class="channel-hint">
-            <p>暂无已启用的通知渠道，请先到 <router-link to="/settings">设置页面</router-link> 配置通知方式。</p>
-          </div>
-          <div v-else class="channel-list">
-            <label v-if="enabledChannels.includes('notifyx')" class="channel-option">
-              <input type="checkbox" v-model="selectedChannels" value="notifyx" />
-              <span>NotifyX</span>
-            </label>
-            <label v-if="enabledChannels.includes('email')" class="channel-option">
-              <input type="checkbox" v-model="selectedChannels" value="email" />
-              <span>邮件通知</span>
-            </label>
-            <label v-if="enabledChannels.includes('webhook')" class="channel-option">
-              <input type="checkbox" v-model="selectedChannels" value="webhook" />
-              <span>Webhook</span>
-            </label>
-          </div>
-
-          <!-- NotifyX 配置（仅在选择了 NotifyX 时显示） -->
-          <div v-if="selectedChannels.includes('notifyx')" class="channel-config-section">
-            <h4>NotifyX配置</h4>
-            <div class="form-group">
-              <label for="apiKey">API密钥 *</label>
-              <input
-                id="apiKey"
-                v-model="notificationConfig.notifyxConfig.apiKey"
-                type="text"
-                placeholder="NotifyX API密钥（留空则使用设置中的密钥）"
-              />
-              <small>如不填写，将使用设置页面中配置的 API 密钥</small>
-            </div>
+          <div class="channel-hint">
+            <p>
+              通知将发送给您在
+              <router-link to="/settings">设置页面</router-link>
+              中配置的所有已启用渠道。
+            </p>
           </div>
         </div>
 
@@ -172,7 +237,7 @@
             取消
           </button>
           <button type="submit" class="btn-submit" :disabled="loading">
-            {{ loading ? '保存中...' : '保存' }}
+            {{ loading ? "保存中..." : "保存" }}
           </button>
         </div>
       </form>
@@ -181,68 +246,74 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
-import { useTasksStore } from '@/stores/tasks'
-import { settingsApi } from '@/api/client'
-import type { Task, TaskConfig, KeepaliveConfig, NotificationConfig } from '@/types'
+import { ref, computed, watch, onMounted } from "vue";
+import { useTasksStore } from "@/stores/tasks";
+import { settingsApi } from "@/api/client";
+import type {
+  Task,
+  TaskConfig,
+  KeepaliveConfig,
+  NotificationConfig,
+} from "@/types";
 
 const props = defineProps<{
-  task?: Task | null
-}>()
+  task?: Task | null;
+}>();
 
 const emit = defineEmits<{
-  close: []
-  save: []
-}>()
+  close: [];
+  save: [];
+}>();
 
-const tasksStore = useTasksStore()
+const tasksStore = useTasksStore();
 
-const isEdit = computed(() => !!props.task)
+const isEdit = computed(() => !!props.task);
 
 const formData = ref<TaskConfig>({
-  name: '',
-  type: 'keepalive',
-  schedule: '*/5 * * * *',
+  name: "",
+  type: "keepalive",
+  schedule: "*/5 * * * *",
   enabled: true,
-  config: {} as any
-})
+  config: {} as any,
+});
 
 const keepaliveConfig = ref<KeepaliveConfig>({
-  url: '',
-  method: 'GET',
+  url: "",
+  method: "GET",
   timeout: 30,
   headers: {},
-  body: ''
-})
+  body: "",
+});
 
 const notificationConfig = ref<NotificationConfig>({
-  message: '',
-  title: '',
-  priority: 'normal',
+  message: "",
+  title: "",
+  priority: "normal",
   notifyxConfig: {
-    apiKey: '',
-    channelId: '',
-    message: ''
-  }
-})
+    apiKey: "",
+    channelId: "",
+    message: "",
+  },
+});
 
-const headersJson = ref('')
-const loading = ref(false)
-const error = ref('')
-const enabledChannels = ref<string[]>([])
-const selectedChannels = ref<string[]>([])
+const headersJson = ref("");
+const loading = ref(false);
+const error = ref("");
+const scheduleType = ref<"cron" | "periodic">("cron");
+const periodicConfig = ref({
+  startDate: new Date().toISOString().split("T")[0],
+  endDate: "",
+  interval: 1,
+  unit: "day" as "day" | "month" | "year",
+  reminderAdvanceValue: undefined as number | undefined,
+  reminderAdvanceUnit: "day" as "day" | "hour",
+  autoRenew: false,
+});
 
-// 加载已启用的通知渠道
+// 初始化
 onMounted(async () => {
-  try {
-    const response = await settingsApi.getEnabledChannels()
-    if (response.success && response.data) {
-      enabledChannels.value = response.data
-    }
-  } catch {
-    // 静默失败
-  }
-})
+  // 移除获取 channels 的调用，因为不再需要选择
+});
 
 // 如果是编辑模式，填充表单
 watch(
@@ -254,67 +325,140 @@ watch(
         type: task.type,
         schedule: task.schedule,
         enabled: task.enabled,
-        config: task.config
+        config: task.config,
+      };
+
+      // Check if executionRule exists
+      const config = task.config as any;
+      if (config.executionRule) {
+        scheduleType.value = "periodic";
+        periodicConfig.value = {
+          startDate: config.executionRule.startDate.split("T")[0],
+          endDate: config.executionRule.endDate
+            ? config.executionRule.endDate.split("T")[0]
+            : "",
+          interval: config.executionRule.interval,
+          unit: config.executionRule.unit,
+          reminderAdvanceValue: config.executionRule.reminderAdvanceValue,
+          reminderAdvanceUnit:
+            config.executionRule.reminderAdvanceUnit || "day",
+          autoRenew: config.executionRule.autoRenew || false,
+        };
+      } else {
+        scheduleType.value = "cron";
       }
 
-      if (task.type === 'keepalive') {
-        const config = task.config as KeepaliveConfig
-        keepaliveConfig.value = { ...config }
-        if (config.headers) {
-          headersJson.value = JSON.stringify(config.headers, null, 2)
+      if (task.type === "keepalive") {
+        keepaliveConfig.value = { ...(task.config as KeepaliveConfig) };
+        if (keepaliveConfig.value.headers) {
+          headersJson.value = JSON.stringify(
+            keepaliveConfig.value.headers,
+            null,
+            2,
+          );
+        } else {
+          headersJson.value = "";
         }
       } else {
-        const config = task.config as NotificationConfig
-        notificationConfig.value = { ...config }
+        notificationConfig.value = { ...(task.config as NotificationConfig) };
       }
+    } else {
+      // Reset form
+      periodicConfig.value = {
+        startDate: new Date().toISOString().split("T")[0],
+        endDate: "",
+        interval: 1,
+        unit: "day",
+        reminderAdvanceValue: undefined,
+        reminderAdvanceUnit: "day",
+        autoRenew: false,
+      };
     }
   },
-  { immediate: true }
-)
+  { immediate: true },
+);
 
 async function handleSubmit() {
-  error.value = ''
-  loading.value = true
+  error.value = "";
+  loading.value = true;
 
   try {
     // 保存任务
-    if (formData.value.type === 'keepalive') {
+    if (formData.value.type === "keepalive") {
       // 解析headers JSON
       if (headersJson.value.trim()) {
         try {
-          keepaliveConfig.value.headers = JSON.parse(headersJson.value)
+          keepaliveConfig.value.headers = JSON.parse(headersJson.value);
         } catch {
-          error.value = '请求头JSON格式错误'
-          loading.value = false
-          return
+          error.value = "请求头JSON格式错误";
+          loading.value = false;
+          return;
         }
       }
-      formData.value.config = keepaliveConfig.value
+      formData.value.config = keepaliveConfig.value;
     } else {
-      // 同步message到notifyxConfig
-      notificationConfig.value.notifyxConfig.message = notificationConfig.value.message
-      // 将选中的通知渠道保存到配置中
-      ;(notificationConfig.value as any).channels = selectedChannels.value
-      formData.value.config = notificationConfig.value
+      // 同步message到notifyxConfig (Backend relies on message property, notifyxConfig might be legacy or used for different structure)
+      // We ensure notifyxConfig exists to satisfy type definition
+      if (!notificationConfig.value.notifyxConfig) {
+        notificationConfig.value.notifyxConfig = {
+          apiKey: "",
+          message: "",
+          channelId: "",
+        };
+      }
+      notificationConfig.value.notifyxConfig.message =
+        notificationConfig.value.message;
+      // notifyxConfig.apiKey is no longer used from here
+
+      formData.value.config = notificationConfig.value;
+    }
+
+    // Handle Schedule Type
+    if (scheduleType.value === "periodic") {
+      // Set a default cron that runs frequently, e.g. every minute, so the aggressive filter passes it to the execution rule check
+      formData.value.schedule = "* * * * *";
+
+      const rule = {
+        type: "interval" as const,
+        unit: periodicConfig.value.unit,
+        interval: periodicConfig.value.interval,
+        startDate: new Date(
+          periodicConfig.value.startDate as string,
+        ).toISOString(),
+        endDate: periodicConfig.value.endDate
+          ? new Date(periodicConfig.value.endDate as string).toISOString()
+          : undefined,
+        reminderAdvanceValue: periodicConfig.value.reminderAdvanceValue,
+        reminderAdvanceUnit: periodicConfig.value.reminderAdvanceUnit,
+        autoRenew: periodicConfig.value.autoRenew,
+      };
+
+      // Assign executionRule to config
+      (formData.value.config as any).executionRule = rule;
+    } else {
+      // Clear executionRule if switching back to cron
+      if ((formData.value.config as any).executionRule) {
+        delete (formData.value.config as any).executionRule;
+      }
     }
 
     // 保存任务
-    let success = false
+    let success = false;
     if (isEdit.value && props.task) {
-      success = await tasksStore.updateTask(props.task.id, formData.value)
+      success = await tasksStore.updateTask(props.task.id, formData.value);
     } else {
-      success = await tasksStore.createTask(formData.value)
+      success = await tasksStore.createTask(formData.value);
     }
 
     if (success) {
-      emit('save')
+      emit("save");
     } else {
-      error.value = tasksStore.error || '保存失败'
+      error.value = tasksStore.error || "保存失败";
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '保存失败'
+    error.value = err instanceof Error ? err.message : "保存失败";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 </script>
@@ -393,9 +537,9 @@ async function handleSubmit() {
   margin-bottom: 0.5rem;
 }
 
-.form-group input[type='text'],
-.form-group input[type='url'],
-.form-group input[type='number'],
+.form-group input[type="text"],
+.form-group input[type="url"],
+.form-group input[type="number"],
 .form-group select,
 .form-group textarea {
   width: 100%;
@@ -405,7 +549,7 @@ async function handleSubmit() {
   font-size: 0.95rem;
 }
 
-.form-group input[type='checkbox'] {
+.form-group input[type="checkbox"] {
   margin-right: 0.5rem;
 }
 
@@ -521,7 +665,7 @@ async function handleSubmit() {
   background: #f0f3ff;
 }
 
-.channel-option input[type='checkbox'] {
+.channel-option input[type="checkbox"] {
   accent-color: #667eea;
 }
 
@@ -533,7 +677,38 @@ async function handleSubmit() {
   background: #f7fafc;
 }
 
-.channel-config-section h4 {
-  margin: 0 0 1rem 0;
+.schedule-type-selector {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.radio-label input[type="radio"] {
+  accent-color: #667eea;
+}
+
+.periodic-config {
+  background: #f7fafc;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-row .form-group {
+  flex: 1;
+  margin-bottom: 0;
 }
 </style>

@@ -25,7 +25,7 @@ export class CronService {
 
       // 获取所有启用的任务
       const tasksResult = await DatabaseUtils.getAllTasks(env, { enabled: true });
-      
+
       if (!tasksResult.success || !tasksResult.data) {
         errors.push('获取任务列表失败');
         return { success: false, processed: 0, errors };
@@ -79,6 +79,12 @@ export class CronService {
         return false;
       }
 
+      // 检查是否有自定义执行规则
+      const config = task.config as any; // Temporary cast to access optional executionRule
+      if (config.executionRule) {
+        return this.checkExecutionRule(task, config.executionRule);
+      }
+
       // 解析Cron表达式
       const cronMatch = this.matchCronExpression(
         task.schedule,
@@ -92,6 +98,73 @@ export class CronService {
       return cronMatch;
     });
   }
+
+  /**
+   * 检查是否满足自定义执行规则
+   * @param task 任务
+   * @param rule 执行规则
+   * @returns 是否需要执行
+   */
+  private static checkExecutionRule(task: Task, rule: any): boolean {
+    const now = new Date();
+
+    // 检查结束日期
+    if (rule.endDate && new Date(rule.endDate) < now) {
+      return false;
+    }
+
+    // 如果任务从未执行过
+    if (!task.last_executed) {
+      const startDate = new Date(rule.startDate);
+      // 如果设置了提前提醒，则检查是否到了提醒时间
+      if (rule.reminderAdvanceValue && rule.reminderAdvanceUnit) {
+        const advanceMs = this.getAdvanceMs(rule.reminderAdvanceValue, rule.reminderAdvanceUnit);
+        if (now.getTime() >= startDate.getTime() - advanceMs) {
+          return true;
+        }
+      }
+      return now >= startDate;
+    }
+
+    // 计算下次执行时间
+    const lastExecuted = new Date(task.last_executed);
+    const nextDue = new Date(lastExecuted);
+
+    if (rule.unit === 'day') {
+      nextDue.setDate(nextDue.getDate() + rule.interval);
+    } else if (rule.unit === 'month') {
+      nextDue.setMonth(nextDue.getMonth() + rule.interval);
+    } else if (rule.unit === 'year') {
+      nextDue.setFullYear(nextDue.getFullYear() + rule.interval);
+    }
+
+    // 如果设置了提前提醒
+    if (rule.reminderAdvanceValue && rule.reminderAdvanceUnit) {
+      const advanceMs = this.getAdvanceMs(rule.reminderAdvanceValue, rule.reminderAdvanceUnit);
+      if (now.getTime() >= nextDue.getTime() - advanceMs) {
+        // 防止在同一周期内重复执行 (简单防重：Last Executed < Next Due - Period)
+        // 但这里我们假设每次执行都会更新 last_executed，所以只要 now >= nextDue - advanceMs 且 last_executed 是上个周期的即可
+        // 更严谨的逻辑可能需要记录 "nextDueDate" 到 task 中
+        // 为简化，这里假设执行间隔肯定大于提前量，且如果 last_executed 接近 nextDue (在 advanceMs 范围内)，说明是本次周期的执行
+
+        // 如果上次执行时间在 (NextDue - Advance - Buffer) 之后，说明已经为这个周期执行过了
+        // Buffer 设为 1 小时，避免因为计算误差重复执行
+        const cycleStart = new Date(nextDue.getTime() - advanceMs - 60 * 60 * 1000);
+        if (lastExecuted > cycleStart) {
+          return false;
+        }
+
+        return true;
+      }
+    }
+
+    return now >= nextDue;
+  }
+
+  private static getAdvanceMs(value: number, unit: 'day' | 'hour'): number {
+    return value * (unit === 'day' ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000);
+  }
+
 
   /**
    * 匹配Cron表达式
@@ -112,7 +185,7 @@ export class CronService {
     dayOfWeek: number
   ): boolean {
     const parts = cronExpression.trim().split(/\s+/);
-    
+
     if (parts.length !== 5) {
       console.warn(`无效的Cron表达式: ${cronExpression}`);
       return false;
@@ -208,7 +281,7 @@ export class CronService {
         type: 'keepalive',
         enabled: true
       });
-      
+
       if (!tasksResult.success || !tasksResult.data) {
         errors.push('获取保活任务列表失败');
         return { success: false, processed: 0, errors };
@@ -257,7 +330,7 @@ export class CronService {
         type: 'notification',
         enabled: true
       });
-      
+
       if (!tasksResult.success || !tasksResult.data) {
         errors.push('获取通知任务列表失败');
         return { success: false, processed: 0, errors };

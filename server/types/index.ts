@@ -17,18 +17,33 @@ export interface User {
 }
 
 // 任务配置类型
+export interface ExecutionRule {
+  type: 'interval';
+  unit: 'day' | 'month' | 'year';
+  interval: number;
+  startDate: string;
+  endDate?: string;
+  // New fields for periodic reminders
+  reminderAdvanceValue?: number;
+  reminderAdvanceUnit?: 'day' | 'hour';
+  autoRenew?: boolean;
+  nextDueDate?: string;
+}
+
 export interface KeepaliveConfig {
   url: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers?: Record<string, string>;
   body?: string;
   timeout: number;
+  executionRule?: ExecutionRule;
 }
 
 export interface NotificationConfig {
   message: string;
   title?: string;
   notifyxConfig: NotifyXConfig;
+  executionRule?: ExecutionRule;
 }
 
 export interface NotifyXConfig {
@@ -75,6 +90,7 @@ export interface NotificationSettings {
   webhook_url?: string;
   notifyx_enabled: boolean;
   notifyx_api_key?: string;
+  allowed_time_slots?: string; // Comma-separated hours, e.g. "08,12,20"
   failure_threshold: number;
   created_at: string;
   updated_at: string;

@@ -16,6 +16,15 @@
       <!-- 筛选器 -->
       <div class="filters">
         <div class="filter-group">
+          <label>日志类型：</label>
+          <select v-model="filterLogType" @change="applyFilters">
+            <option value="">全部</option>
+            <option value="execution">执行日志</option>
+            <option value="system">系统日志</option>
+            <option value="audit">审计日志</option>
+          </select>
+        </div>
+        <div v-if="!filterLogType || filterLogType === 'execution'" class="filter-group">
           <label>任务类型：</label>
           <select v-model="filterTaskType" @change="applyFilters">
             <option value="">全部</option>
@@ -33,19 +42,11 @@
         </div>
         <div class="filter-group">
           <label>开始日期：</label>
-          <input
-            v-model="filterStartDate"
-            type="datetime-local"
-            @change="applyFilters"
-          />
+          <input v-model="filterStartDate" type="datetime-local" @change="applyFilters" />
         </div>
         <div class="filter-group">
           <label>结束日期：</label>
-          <input
-            v-model="filterEndDate"
-            type="datetime-local"
-            @change="applyFilters"
-          />
+          <input v-model="filterEndDate" type="datetime-local" @change="applyFilters" />
         </div>
       </div>
 
@@ -80,22 +81,30 @@
         暂无日志记录
       </div>
       <div v-else class="logs-list">
-        <div
-          v-for="log in logsStore.logs"
-          :key="log.id"
-          class="log-card"
-          :class="log.status"
-          @click="showLogDetail(log)"
-        >
+        <div v-for="log in logsStore.logs" :key="log.id" class="log-card" :class="log.status"
+          @click="showLogDetail(log)">
           <div class="log-header">
             <div class="log-info">
               <span class="log-status" :class="log.status">
                 {{ log.status === 'success' ? '✓ 成功' : '✗ 失败' }}
               </span>
-              <span class="log-task-name">{{ log.taskName || log.taskId }}</span>
-              <span v-if="log.taskType" class="log-task-type" :class="log.taskType">
-                {{ log.taskType === 'keepalive' ? '保活' : '通知' }}
+              <span class="log-type-badge" :class="log.logType">
+                {{ formatLogType(log.logType) }}
               </span>
+
+              <template v-if="log.logType === 'audit'">
+                <span class="log-action">{{ log.action }}</span>
+                <span v-if="log.resourceType" class="log-resource">
+                  ({{ log.resourceType }})
+                </span>
+              </template>
+
+              <template v-else>
+                <span class="log-task-name">{{ log.taskName || log.taskId }}</span>
+                <span v-if="log.taskType" class="log-task-type" :class="log.taskType">
+                  {{ log.taskType === 'keepalive' ? '保活' : '通知' }}
+                </span>
+              </template>
             </div>
             <div class="log-time">{{ formatDate(log.executionTime) }}</div>
           </div>
@@ -117,22 +126,14 @@
 
         <!-- 加载更多 -->
         <div v-if="logsStore.hasMore" class="load-more">
-          <button
-            @click="loadMore"
-            class="btn-load-more"
-            :disabled="logsStore.loading"
-          >
+          <button @click="loadMore" class="btn-load-more" :disabled="logsStore.loading">
             {{ logsStore.loading ? '加载中...' : '加载更多' }}
           </button>
         </div>
       </div>
 
       <!-- 日志详情模态框 -->
-      <LogDetailModal
-        v-if="selectedLog"
-        :log="selectedLog"
-        @close="selectedLog = null"
-      />
+      <LogDetailModal v-if="selectedLog" :log="selectedLog" @close="selectedLog = null" />
     </div>
   </AppLayout>
 </template>
@@ -146,6 +147,7 @@ import type { LogEntry } from '@/types'
 
 const logsStore = useLogsStore()
 
+const filterLogType = ref('')
 const filterTaskType = ref('')
 const filterStatus = ref('')
 const filterStartDate = ref('')
@@ -158,6 +160,7 @@ onMounted(async () => {
 
 function applyFilters() {
   logsStore.setFilter({
+    logType: filterLogType.value as any,
     taskType: filterTaskType.value as any,
     status: filterStatus.value as any,
     startDate: filterStartDate.value || undefined,
@@ -186,6 +189,15 @@ function formatDate(dateString: string): string {
   const date = new Date(dateString)
   return date.toLocaleString('zh-CN')
 }
+
+function formatLogType(type: string): string {
+  const map: Record<string, string> = {
+    execution: '执行',
+    system: '系统',
+    audit: '审计'
+  }
+  return map[type] || type
+}
 </script>
 
 <style scoped>
@@ -200,7 +212,7 @@ function formatDate(dateString: string): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .logs-header h1 {
@@ -251,7 +263,7 @@ function formatDate(dateString: string): string {
 .filters {
   display: flex;
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   padding: 1.5rem;
   background: #f7fafc;
   border-radius: 8px;
@@ -283,11 +295,11 @@ function formatDate(dateString: string): string {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .stat-card {
-  padding: 1.5rem;
+  padding: 0.5rem 1.5rem;
   background: #f7fafc;
   border-radius: 8px;
   border-left: 4px solid #4299e1;
@@ -404,6 +416,39 @@ function formatDate(dateString: string): string {
 .log-task-type.notification {
   background: #fbd38d;
   color: #7c2d12;
+}
+
+.log-type-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.log-type-badge.execution {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+
+.log-type-badge.system {
+  background: #fed7d7;
+  color: #822727;
+}
+
+.log-type-badge.audit {
+  background: #e9d8fd;
+  color: #553c9a;
+}
+
+.log-action {
+  font-weight: 600;
+  color: #2b6cb0;
+}
+
+.log-resource {
+  color: #718096;
+  font-size: 0.9rem;
 }
 
 .log-time {

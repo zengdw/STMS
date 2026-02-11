@@ -7,7 +7,7 @@ import { ExecutionLogModel } from '../models/execution-log.model.js';
  */
 export enum LogType {
   EXECUTION = 'execution',
-  ERROR = 'error',
+  ERROR = 'system',
   AUDIT = 'audit'
 }
 
@@ -41,6 +41,7 @@ export interface ErrorLog {
  */
 export interface LogFilter {
   taskId?: string;
+  logType?: 'execution' | 'system' | 'audit';
   taskType?: 'keepalive' | 'notification';
   status?: 'success' | 'failure';
   startDate?: Date;
@@ -88,6 +89,7 @@ export class LogService {
       const log = ExecutionLogModel.create({
         id: this.generateId(),
         task_id: taskId,
+        log_type: LogType.EXECUTION,
         status,
         response_time: responseTime,
         status_code: statusCode,
@@ -96,7 +98,7 @@ export class LogService {
       });
 
       const result = await DatabaseUtils.createExecutionLog(env, log);
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -123,6 +125,7 @@ export class LogService {
     try {
       const dbFilter: any = {
         taskId: filter?.taskId,
+        logType: filter?.logType,
         status: filter?.status,
         startDate: filter?.startDate?.toISOString(),
         endDate: filter?.endDate?.toISOString(),
@@ -131,7 +134,7 @@ export class LogService {
       };
 
       const result = await DatabaseUtils.getExecutionLogs(env, dbFilter);
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -141,7 +144,7 @@ export class LogService {
       if (filter?.taskType) {
         const filteredLogs: ExecutionLog[] = [];
         for (const log of logs) {
-          const taskResult = await DatabaseUtils.getTaskById(env, log.task_id);
+          const taskResult = await DatabaseUtils.getTaskById(env, log.task_id!);
           if (taskResult.success && taskResult.data && taskResult.data.type === filter.taskType) {
             filteredLogs.push(log);
           }
@@ -232,10 +235,10 @@ export class LogService {
         timestamp: new Date().toISOString()
       };
 
-      // 将错误日志作为执行日志存储（使用特殊的task_id标识）
+      // 将错误日志作为执行日志存储（system类型，无需fake taskId）
       const log = ExecutionLogModel.create({
         id: errorLog.id,
-        task_id: 'system_error',
+        log_type: LogType.ERROR,
         status: 'failure',
         error_message: `[${errorType}] ${errorMessage}`,
         details: {
@@ -246,7 +249,7 @@ export class LogService {
       });
 
       const result = await DatabaseUtils.createExecutionLog(env, log);
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -273,9 +276,13 @@ export class LogService {
     offset: number = 0
   ): Promise<{ success: boolean; data?: ErrorLog[]; error?: string }> {
     try {
-      // 获取task_id为'system_error'的日志
-      const result = await DatabaseUtils.getExecutionLogsByTaskId(env, 'system_error', limit, offset);
-      
+      // 获取log_type为'system'的日志
+      const result = await DatabaseUtils.getExecutionLogs(env, {
+        logType: LogType.ERROR,
+        limit,
+        offset
+      });
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -333,10 +340,10 @@ export class LogService {
         timestamp: new Date().toISOString()
       };
 
-      // 将审计日志作为执行日志存储（使用特殊的task_id标识）
+      // 将审计日志作为执行日志存储（audit类型，无需fake taskId）
       const log = ExecutionLogModel.create({
         id: auditLog.id,
-        task_id: 'audit_log',
+        log_type: LogType.AUDIT,
         status: 'success',
         details: {
           user_id: userId,
@@ -348,7 +355,6 @@ export class LogService {
       });
 
       const result = await DatabaseUtils.createExecutionLog(env, log);
-      
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -377,9 +383,13 @@ export class LogService {
     offset: number = 0
   ): Promise<{ success: boolean; data?: AuditLog[]; error?: string }> {
     try {
-      // 获取task_id为'audit_log'的日志
-      const result = await DatabaseUtils.getExecutionLogsByTaskId(env, 'audit_log', limit, offset);
-      
+      // 获取log_type为'audit'的日志
+      const result = await DatabaseUtils.getExecutionLogs(env, {
+        logType: LogType.AUDIT,
+        limit,
+        offset
+      });
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -430,7 +440,7 @@ export class LogService {
       cutoffDate.setDate(cutoffDate.getDate() - days);
 
       const result = await DatabaseUtils.deleteOldExecutionLogs(env, cutoffDate.toISOString());
-      
+
       if (!result.success) {
         return { success: false, error: result.error };
       }
@@ -468,7 +478,7 @@ export class LogService {
     try {
       // 获取所有日志
       const allLogsResult = await DatabaseUtils.getAllExecutionLogs(env, 10000);
-      
+
       if (!allLogsResult.success) {
         return { success: false, error: allLogsResult.error };
       }
@@ -478,10 +488,10 @@ export class LogService {
 
       // 分类统计
       const executionLogs = allLogs.filter(
-        log => log.task_id !== 'system_error' && log.task_id !== 'audit_log'
+        log => log.log_type === 'execution'
       ).length;
-      const errorLogs = allLogs.filter(log => log.task_id === 'system_error').length;
-      const auditLogs = allLogs.filter(log => log.task_id === 'audit_log').length;
+      const errorLogs = allLogs.filter(log => log.log_type === 'system').length;
+      const auditLogs = allLogs.filter(log => log.log_type === 'audit').length;
 
       // 状态统计
       const successCount = allLogs.filter(log => log.status === 'success').length;
@@ -528,7 +538,7 @@ export class LogService {
     try {
       // 获取日志统计
       const statsResult = await this.getLogStatistics(env);
-      
+
       if (!statsResult.success || !statsResult.data) {
         return { success: false, error: '获取日志统计失败' };
       }

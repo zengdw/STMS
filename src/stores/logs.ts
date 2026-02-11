@@ -16,11 +16,11 @@ export const useLogsStore = defineStore('logs', () => {
   const totalCount = ref(0)
 
   // 计算属性
-  const successLogs = computed(() => 
+  const successLogs = computed(() =>
     logs.value.filter(log => log.status === 'success')
   )
 
-  const failureLogs = computed(() => 
+  const failureLogs = computed(() =>
     logs.value.filter(log => log.status === 'failure')
   )
 
@@ -121,11 +121,12 @@ export const useLogsStore = defineStore('logs', () => {
   function setFilter(newFilter: LogFilter): void {
     filter.value = { ...filter.value, ...newFilter }
     // 重置偏移量
-    if (newFilter.taskId !== undefined || 
-        newFilter.taskType !== undefined || 
-        newFilter.status !== undefined ||
-        newFilter.startDate !== undefined ||
-        newFilter.endDate !== undefined) {
+    if (newFilter.taskId !== undefined ||
+      newFilter.logType !== undefined ||
+      newFilter.taskType !== undefined ||
+      newFilter.status !== undefined ||
+      newFilter.startDate !== undefined ||
+      newFilter.endDate !== undefined) {
       filter.value.offset = 0
     }
   }

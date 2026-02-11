@@ -22,12 +22,11 @@ export interface ExecutionRule {
   unit: 'day' | 'month' | 'year';
   interval: number;
   startDate: string;
-  endDate?: string;
+  endDate: string; // 下一次执行日期
   // New fields for periodic reminders
   reminderAdvanceValue?: number;
   reminderAdvanceUnit?: 'day' | 'hour';
   autoRenew?: boolean;
-  nextDueDate?: string;
 }
 
 export interface KeepaliveConfig {
@@ -69,7 +68,8 @@ export interface Task {
 // 执行日志模型
 export interface ExecutionLog {
   id: string;
-  task_id: string;
+  task_id?: string;
+  log_type: 'execution' | 'system' | 'audit';
   execution_time: string;
   status: 'success' | 'failure';
   response_time?: number;

@@ -10,8 +10,13 @@ export class ExecutionLogModel {
    * @param taskId 任务ID
    * @returns 是否有效
    */
-  static validateTaskId(taskId: string): boolean {
-    return !!(taskId && typeof taskId === 'string' && taskId.trim().length > 0);
+  /**
+   * 验证任务ID
+   * @param taskId 任务ID
+   * @returns 是否有效
+   */
+  static validateTaskId(taskId: string | undefined): boolean {
+    return !taskId || (typeof taskId === 'string' && taskId.trim().length > 0);
   }
 
   /**
@@ -75,9 +80,9 @@ export class ExecutionLogModel {
   static validate(logData: Partial<ExecutionLog>): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    // 验证任务ID
-    if (logData.task_id !== undefined && !this.validateTaskId(logData.task_id)) {
-      errors.push('任务ID不能为空');
+    // 验证任务ID (如果是execution类型，则必须有taskId)
+    if (logData.log_type === 'execution' && !this.validateTaskId(logData.task_id as string)) {
+      errors.push('执行日志必须包含任务ID');
     }
 
     // 验证执行状态
@@ -118,7 +123,8 @@ export class ExecutionLogModel {
    */
   static create(logData: {
     id: string;
-    task_id: string;
+    task_id?: string;
+    log_type: 'execution' | 'system' | 'audit';
     status: 'success' | 'failure';
     response_time?: number;
     status_code?: number;
@@ -128,6 +134,7 @@ export class ExecutionLogModel {
     return {
       id: logData.id,
       task_id: logData.task_id,
+      log_type: logData.log_type,
       execution_time: new Date().toISOString(),
       status: logData.status,
       response_time: logData.response_time,
@@ -145,7 +152,8 @@ export class ExecutionLogModel {
   static fromDatabaseRow(row: any): ExecutionLog {
     return {
       id: row.id,
-      task_id: row.task_id,
+      task_id: row.task_id || undefined,
+      log_type: row.log_type || 'execution',
       execution_time: row.execution_time,
       status: row.status,
       response_time: row.response_time || undefined,
@@ -163,7 +171,8 @@ export class ExecutionLogModel {
   static toDatabaseInsert(log: ExecutionLog): Record<string, any> {
     return {
       id: log.id,
-      task_id: log.task_id,
+      task_id: log.task_id || null,
+      log_type: log.log_type,
       execution_time: log.execution_time,
       status: log.status,
       response_time: log.response_time || null,
@@ -190,6 +199,7 @@ export class ExecutionLogModel {
     return this.create({
       id: crypto.randomUUID(),
       task_id: taskId,
+      log_type: 'execution',
       status: 'success',
       response_time: responseTime,
       status_code: statusCode,
@@ -214,6 +224,7 @@ export class ExecutionLogModel {
     return this.create({
       id: crypto.randomUUID(),
       task_id: taskId,
+      log_type: 'execution',
       status: 'failure',
       error_message: errorMessage,
       status_code: statusCode,

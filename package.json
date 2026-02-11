@@ -4,8 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "run-p dev:frontend dev:backend",
-		"dev:frontend": "vite",
+		"dev": "vite",
 		"dev:backend": "wrangler dev --local --persist-to=.wrangler/state",
 		"build": "run-p type-check \"build-only {@}\" --",
 		"preview": "pnpm run build && wrangler dev",

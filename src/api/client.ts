@@ -171,6 +171,7 @@ export const logApi = {
   async getLogs(filter?: LogFilter): Promise<ApiResponse<LogEntry[]>> {
     const params = new URLSearchParams()
     if (filter?.taskId) params.append('taskId', filter.taskId)
+    if (filter?.logType) params.append('logType', filter.logType)
     if (filter?.taskType) params.append('taskType', filter.taskType)
     if (filter?.status) params.append('status', filter.status)
     if (filter?.startDate) params.append('startDate', filter.startDate)
@@ -186,6 +187,7 @@ export const logApi = {
   async exportLogs(filter?: LogFilter): Promise<Blob | null> {
     const params = new URLSearchParams()
     if (filter?.taskId) params.append('taskId', filter.taskId)
+    if (filter?.logType) params.append('logType', filter.logType)
     if (filter?.taskType) params.append('taskType', filter.taskType)
     if (filter?.status) params.append('status', filter.status)
     if (filter?.startDate) params.append('startDate', filter.startDate)

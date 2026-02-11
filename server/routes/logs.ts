@@ -25,6 +25,7 @@ export class LogRoutes {
 
       const url = new URL(request.url);
       const taskId = url.searchParams.get('taskId');
+      const logType = url.searchParams.get('logType') as 'execution' | 'system' | 'audit' | null;
       const taskType = url.searchParams.get('taskType') as 'keepalive' | 'notification' | null;
       const status = url.searchParams.get('status') as 'success' | 'failure' | null;
       const startDate = url.searchParams.get('startDate');
@@ -35,6 +36,7 @@ export class LogRoutes {
       // 构建筛选条件
       const filter: any = {
         taskId: taskId || undefined,
+        logType: logType || undefined,
         taskType: taskType || undefined,
         status: status || undefined,
         startDate: startDate ? new Date(startDate) : undefined,
@@ -45,7 +47,7 @@ export class LogRoutes {
 
       // 获取日志
       const result = await LogService.getExecutionLogs(env, filter);
-      
+
       if (!result.success) {
         return new Response(JSON.stringify({
           success: false,
@@ -56,9 +58,42 @@ export class LogRoutes {
         });
       }
 
+      // 转换字段格式为前端使用的 camelCase
+      const mappedData = (result.data || []).map(log => {
+        let action: string | undefined;
+        let resourceType: string | undefined;
+
+        // 尝试从 details 中解析 action 和 resource_type
+        if (log.details) {
+          try {
+            const details = JSON.parse(log.details);
+            action = details.action;
+            resourceType = details.resource_type || details.resourceType;
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+
+        return {
+          id: log.id,
+          taskId: log.task_id || '',
+          // taskName: '', // execution_logs 不包含 task_name，如果需要可以在这里查询或前端处理
+          // taskType: log.log_type === 'execution' ? ('keepalive' as const) : undefined, // 简单推断
+          logType: log.log_type,
+          action,
+          resourceType,
+          executionTime: log.execution_time,
+          status: log.status,
+          responseTime: log.response_time,
+          statusCode: log.status_code,
+          errorMessage: log.error_message,
+          details: log.details
+        };
+      });
+
       return new Response(JSON.stringify({
         success: true,
-        data: result.data
+        data: mappedData
       } as ApiResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -101,7 +136,7 @@ export class LogRoutes {
       }
 
       const result = await LogService.getExecutionLog(env, logId);
-      
+
       if (!result.success) {
         return new Response(JSON.stringify({
           success: false,
@@ -122,9 +157,37 @@ export class LogRoutes {
         });
       }
 
+      const log = result.data;
+      let action: string | undefined;
+      let resourceType: string | undefined;
+
+      if (log.details) {
+        try {
+          const details = JSON.parse(log.details);
+          action = details.action;
+          resourceType = details.resource_type || details.resourceType;
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+
+      const mappedLog = {
+        id: log.id,
+        taskId: log.task_id || '',
+        logType: log.log_type,
+        action,
+        resourceType,
+        executionTime: log.execution_time,
+        status: log.status,
+        responseTime: log.response_time,
+        statusCode: log.status_code,
+        errorMessage: log.error_message,
+        details: log.details
+      };
+
       return new Response(JSON.stringify({
         success: true,
-        data: result.data
+        data: mappedLog
       } as ApiResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -191,7 +254,7 @@ export class LogRoutes {
       );
 
       const result = await LogService.cleanupOldLogs(env, days);
-      
+
       if (!result.success) {
         return new Response(JSON.stringify({
           success: false,
@@ -247,7 +310,7 @@ export class LogRoutes {
       }
 
       const result = await LogService.getLogStatistics(env);
-      
+
       if (!result.success) {
         return new Response(JSON.stringify({
           success: false,
@@ -307,7 +370,7 @@ export class LogRoutes {
       const offset = parseInt(url.searchParams.get('offset') || '0');
 
       const result = await LogService.getErrorLogs(env, limit, offset);
-      
+
       if (!result.success) {
         return new Response(JSON.stringify({
           success: false,
@@ -368,7 +431,7 @@ export class LogRoutes {
       const offset = parseInt(url.searchParams.get('offset') || '0');
 
       const result = await LogService.getAuditLogs(env, userId || undefined, limit, offset);
-      
+
       if (!result.success) {
         return new Response(JSON.stringify({
           success: false,

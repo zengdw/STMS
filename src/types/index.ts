@@ -85,6 +85,9 @@ export interface LogEntry {
   taskId: string
   taskName?: string
   taskType?: TaskType
+  logType: 'execution' | 'system' | 'audit'
+  action?: string
+  resourceType?: string
   executionTime: string
   status: TaskStatus
   responseTime?: number
@@ -95,6 +98,7 @@ export interface LogEntry {
 
 export interface LogFilter {
   taskId?: string
+  logType?: 'execution' | 'system' | 'audit'
   taskType?: TaskType
   status?: TaskStatus
   startDate?: string

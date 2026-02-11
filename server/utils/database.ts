@@ -380,10 +380,11 @@ export class DatabaseUtils {
     return this.executeWithRetry(async () => {
       const data = ExecutionLogModel.toDatabaseInsert(log);
       await env.DB.prepare(
-        'INSERT INTO execution_logs (id, task_id, execution_time, status, response_time, status_code, error_message, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO execution_logs (id, task_id, log_type, execution_time, status, response_time, status_code, error_message, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(
         data.id,
         data.task_id,
+        data.log_type,
         data.execution_time,
         data.status,
         data.response_time,
@@ -464,6 +465,7 @@ export class DatabaseUtils {
    */
   static async getExecutionLogs(env: Environment, filter?: {
     taskId?: string;
+    logType?: 'execution' | 'system' | 'audit';
     status?: 'success' | 'failure';
     startDate?: string;
     endDate?: string;
@@ -477,6 +479,11 @@ export class DatabaseUtils {
       if (filter?.taskId) {
         query += ' AND task_id = ?';
         bindings.push(filter.taskId);
+      }
+
+      if (filter?.logType) {
+        query += ' AND log_type = ?';
+        bindings.push(filter.logType);
       }
 
       if (filter?.status) {
@@ -730,6 +737,7 @@ export class DatabaseUtils {
         'idx_tasks_enabled',
         'idx_tasks_created_by',
         'idx_execution_logs_task_id',
+        'idx_execution_logs_log_type',
         'idx_execution_logs_execution_time',
         'idx_execution_logs_status'
       ];

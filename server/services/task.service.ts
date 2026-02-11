@@ -48,6 +48,23 @@ export class TaskService {
         enabled: taskData.enabled !== undefined ? taskData.enabled : true
       });
 
+      // Handle periodic task endDate initialization
+      if (task.config.executionRule) {
+        const rule = task.config.executionRule;
+        if (!rule.endDate) {
+          const startDate = new Date(rule.startDate);
+          let nextDate = new Date(startDate);
+          if (rule.unit === 'day') {
+            nextDate.setDate(nextDate.getDate() + rule.interval);
+          } else if (rule.unit === 'month') {
+            nextDate.setMonth(nextDate.getMonth() + rule.interval);
+          } else if (rule.unit === 'year') {
+            nextDate.setFullYear(nextDate.getFullYear() + rule.interval);
+          }
+          task.config.executionRule.endDate = nextDate.toISOString();
+        }
+      }
+
       // 保存到数据库
       const result = await DatabaseUtils.createTask(env, task);
 
@@ -108,6 +125,23 @@ export class TaskService {
       // 验证权限（只有创建者可以更新）
       if (existingResult.data.created_by !== userId) {
         return { success: false, error: '无权限更新此任务' };
+      }
+
+      // Handle periodic task endDate initialization for updates
+      if (updateData.config && (updateData.config as any).executionRule) {
+        const rule = (updateData.config as any).executionRule;
+        if (!rule.endDate) {
+          const startDate = new Date(rule.startDate);
+          let nextDate = new Date(startDate);
+          if (rule.unit === 'day') {
+            nextDate.setDate(nextDate.getDate() + rule.interval);
+          } else if (rule.unit === 'month') {
+            nextDate.setMonth(nextDate.getMonth() + rule.interval);
+          } else if (rule.unit === 'year') {
+            nextDate.setFullYear(nextDate.getFullYear() + rule.interval);
+          }
+          rule.endDate = nextDate.toISOString();
+        }
       }
 
       // 更新任务
@@ -343,13 +377,28 @@ export class TaskService {
       }
 
       // 记录执行日志
-      await this.logExecution(env, task.id, executionResult);
+      await LogService.logExecution(
+        env,
+        task.id,
+        executionResult.success ? 'success' : 'failure',
+        executionResult.responseTime,
+        executionResult.statusCode,
+        executionResult.error,
+        executionResult
+      );
 
       // 更新任务的最后执行状态
-      await DatabaseUtils.updateTask(env, task.id, {
+      const updateData: Partial<Task> = {
         last_executed: new Date().toISOString(),
         last_status: executionResult.success ? 'success' : 'failure'
-      });
+      };
+
+      // Handle Auto Renew
+      if (task.config.executionRule?.autoRenew) {
+        this.handleAutoRenew(task, updateData);
+      }
+
+      await DatabaseUtils.updateTask(env, task.id, updateData);
 
       // 处理通知
       await this.handleTaskNotifications(env, task, executionResult);
@@ -365,7 +414,15 @@ export class TaskService {
       };
 
       // 记录执行日志
-      await this.logExecution(env, task.id, executionResult);
+      await LogService.logExecution(
+        env,
+        task.id,
+        executionResult.success ? 'success' : 'failure',
+        executionResult.responseTime,
+        executionResult.statusCode,
+        executionResult.error,
+        executionResult
+      );
 
       // 更新任务的最后执行状态
       await DatabaseUtils.updateTask(env, task.id, {
@@ -434,7 +491,15 @@ export class TaskService {
       };
 
       // 记录执行日志
-      await this.logExecution(env, task.id, executionResult);
+      await LogService.logExecution(
+        env,
+        task.id,
+        executionResult.success ? 'success' : 'failure',
+        executionResult.responseTime,
+        executionResult.statusCode,
+        executionResult.error,
+        executionResult
+      );
 
       // 更新任务的最后执行状态
       const updateData: Partial<Task> = {
@@ -443,7 +508,7 @@ export class TaskService {
       };
 
       // Handle Auto Renew
-      if (executionResult.success && task.config.executionRule?.autoRenew) {
+      if (task.config.executionRule?.autoRenew) {
         this.handleAutoRenew(task, updateData);
       }
 
@@ -460,7 +525,15 @@ export class TaskService {
       };
 
       // 记录执行日志
-      await this.logExecution(env, task.id, executionResult);
+      await LogService.logExecution(
+        env,
+        task.id,
+        executionResult.success ? 'success' : 'failure',
+        executionResult.responseTime,
+        executionResult.statusCode,
+        executionResult.error,
+        executionResult
+      );
 
       // 更新任务的最后执行状态
       await DatabaseUtils.updateTask(env, task.id, {
@@ -477,34 +550,23 @@ export class TaskService {
    */
   private static handleAutoRenew(task: Task, updateData: Partial<Task>) {
     const rule = task.config.executionRule!;
-    const startDate = new Date(rule.startDate);
+    // Calculate next execution date based on current endDate (which is the Next Due Date)
+    const currentDueDate = new Date(rule.endDate);
     const interval = rule.interval;
     const unit = rule.unit;
 
-    let nextStart = new Date(startDate);
+    let nextDueDate = new Date(currentDueDate);
     if (unit === 'day') {
-      nextStart.setDate(nextStart.getDate() + interval);
+      nextDueDate.setDate(nextDueDate.getDate() + interval);
     } else if (unit === 'month') {
-      nextStart.setMonth(nextStart.getMonth() + interval);
+      nextDueDate.setMonth(nextDueDate.getMonth() + interval);
     } else if (unit === 'year') {
-      nextStart.setFullYear(nextStart.getFullYear() + interval);
+      nextDueDate.setFullYear(nextDueDate.getFullYear() + interval);
     }
 
     // Update rule in config
-    const newRule = { ...rule, startDate: nextStart.toISOString() };
-
-    if (rule.endDate) {
-      const endDate = new Date(rule.endDate);
-      let nextEnd = new Date(endDate);
-      if (unit === 'day') {
-        nextEnd.setDate(nextEnd.getDate() + interval);
-      } else if (unit === 'month') {
-        nextEnd.setMonth(nextEnd.getMonth() + interval);
-      } else if (unit === 'year') {
-        nextEnd.setFullYear(nextEnd.getFullYear() + interval);
-      }
-      newRule.endDate = nextEnd.toISOString();
-    }
+    // We only update endDate to the NEW Next Due Date
+    const newRule = { ...rule, endDate: nextDueDate.toISOString() };
 
     // Merge into updateData
     // Note: We need to be careful not to overwrite other config updates if any (though currently we only update last_executed/status)
@@ -516,33 +578,7 @@ export class TaskService {
     (updateData as any).config = newConfig;
   }
 
-  /**
-   * 记录任务执行日志
-   * @param env 环境变量
-   * @param taskId 任务ID
-   * @param result 执行结果
-   */
-  private static async logExecution(
-    env: Environment,
-    taskId: string,
-    result: ExecutionResult
-  ): Promise<void> {
-    try {
-      const log = ExecutionLogModel.create({
-        id: this.generateId(),
-        task_id: taskId,
-        status: result.success ? 'success' : 'failure',
-        response_time: result.responseTime,
-        status_code: result.statusCode,
-        error_message: result.error,
-        details: result
-      });
 
-      await DatabaseUtils.createExecutionLog(env, log);
-    } catch (error) {
-      console.error('记录执行日志失败:', error);
-    }
-  }
 
   /**
    * 获取任务执行统计

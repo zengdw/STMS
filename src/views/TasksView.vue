@@ -58,15 +58,11 @@
               <span class="task-type" :class="task.type">
                 {{ task.type === 'keepalive' ? '保活任务' : '通知任务' }}
               </span>
+              <span class="status-badge" :class="{ enabled: task.enabled, disabled: !task.enabled }">
+                {{ task.enabled ? '已启用' : '已禁用' }}
+              </span>
             </div>
             <div class="task-actions">
-              <button
-                @click="toggleTaskStatus(task)"
-                class="btn-toggle"
-                :class="{ enabled: task.enabled }"
-              >
-                {{ task.enabled ? '已启用' : '已禁用' }}
-              </button>
               <button @click="editTask(task)" class="btn-edit">编辑</button>
               <button @click="deleteTaskConfirm(task)" class="btn-delete">
                 删除
@@ -74,13 +70,33 @@
             </div>
           </div>
           <div class="task-details">
-            <div class="detail-item">
+            <div class="detail-item" v-if="!task.config?.executionRule">
               <span class="label">执行计划：</span>
               <span>{{ task.schedule }}</span>
             </div>
+            
+            <!-- Periodic Task Details -->
+            <template v-if="task.config?.executionRule">
+              <div class="detail-item">
+                <span class="label">开始日期：</span>
+                <span>{{ formatDate(task.config.executionRule.startDate) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">到期日期：</span>
+                <span>{{ formatDate(task.config.executionRule.nextDueDate || calculateDueDate(task.config.executionRule)) }}</span>
+              </div>
+              <div class="detail-item" v-if="task.config.executionRule.reminderAdvanceValue !== undefined">
+                <span class="label">提前天数：</span>
+                <span>
+                  {{ task.config.executionRule.reminderAdvanceValue }} 
+                  {{ task.config.executionRule.reminderAdvanceUnit === 'hour' ? '小时' : '天' }}
+                </span>
+              </div>
+            </template>
+
             <div v-if="task.lastExecuted" class="detail-item">
               <span class="label">最后执行：</span>
-              <span>{{ formatDate(task.lastExecuted) }}</span>
+              <span>{{ formatDateTime(task.lastExecuted) }}</span>
             </div>
             <div v-if="task.lastStatus" class="detail-item">
               <span class="label">最后状态：</span>
@@ -158,9 +174,37 @@ function closeModal() {
   editingTask.value = null
 }
 
-function formatDate(dateString: string): string {
+function formatDateTime(dateString: string): string {
   const date = new Date(dateString)
   return date.toLocaleString('zh-CN')
+}
+
+function formatDate(dateString: string): string {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-CN')
+}
+
+function calculateDueDate(rule: any): string {
+  if (!rule.startDate) return ''
+  
+  const start = new Date(rule.startDate)
+  const interval = rule.interval || 0
+  const unit = rule.unit
+  
+  if (isNaN(start.getTime())) return ''
+  
+  const due = new Date(start)
+  
+  if (unit === 'day') {
+    due.setDate(due.getDate() + interval)
+  } else if (unit === 'month') {
+    due.setMonth(due.getMonth() + interval)
+  } else if (unit === 'year') {
+    due.setFullYear(due.getFullYear() + interval)
+  }
+  
+  return due.toISOString()
 }
 </script>
 
@@ -305,12 +349,28 @@ function formatDate(dateString: string): string {
   color: #7c2d12;
 }
 
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge.enabled {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.status-badge.disabled {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
 .task-actions {
   display: flex;
   gap: 0.5rem;
 }
 
-.btn-toggle,
 .btn-edit,
 .btn-delete {
   padding: 0.5rem 1rem;
@@ -320,16 +380,6 @@ function formatDate(dateString: string): string {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-}
-
-.btn-toggle {
-  background: #e2e8f0;
-  color: #4a5568;
-}
-
-.btn-toggle.enabled {
-  background: #48bb78;
-  color: white;
 }
 
 .btn-edit {

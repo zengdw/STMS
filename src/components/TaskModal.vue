@@ -184,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { useTasksStore } from "@/stores/tasks";
 import type {
   Task,
@@ -236,9 +236,9 @@ const periodicConfig = ref({
   endDate: "",
   interval: 1,
   unit: "day" as "day" | "month" | "year",
-  reminderAdvanceValue: undefined as number | undefined,
+  reminderAdvanceValue: 0 as number | undefined,
   reminderAdvanceUnit: "day" as "day" | "hour",
-  autoRenew: false,
+  autoRenew: true,
 });
 
 // 计算到期日期
@@ -316,9 +316,9 @@ watch(
         endDate: "",
         interval: 1,
         unit: "day",
-        reminderAdvanceValue: undefined,
+        reminderAdvanceValue: 0,
         reminderAdvanceUnit: "day",
-        autoRenew: false,
+        autoRenew: true,
       };
     }
   },

@@ -6,7 +6,6 @@ import { RateLimitMiddleware } from './middleware/rate-limit.js';
 
 export default {
 	async fetch(request: Request, env: Environment, ctx: ExecutionContext): Promise<Response> {
-		// this.scheduled({ "cron": "* * * * *", "scheduledTime": Date.now(), "noRetry": () => { } }, env, ctx);
 		try {
 			const url = new URL(request.url);
 			const { pathname } = url;

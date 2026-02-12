@@ -39,6 +39,7 @@
           <label for="schedule">Cron 表达式 *</label>
           <input id="schedule" v-model="formData.schedule" type="text" placeholder="例如: */5 * * * * (每5分钟)" required />
           <small>格式: 秒 分 时 日 月 周</small>
+          <small>Cron 以 UTC 计算，例如北京时间 08:00 (UTC 00:00) 需设置 Cron 为 <code>0 0 * * *</code></small>
         </div>
 
         <div v-if="scheduleType === 'periodic'" class="periodic-config">

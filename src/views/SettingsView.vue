@@ -49,17 +49,16 @@
 
           <!-- 通知时段 -->
           <div class="form-group">
-            <label for="allowedTimeSlots">通知时段 (UTC)</label>
+            <label for="allowedTimeSlots">周期性通知时段 (UTC)</label>
             <input id="allowedTimeSlots" v-model="notifForm.allowedTimeSlots" type="text"
               placeholder="例如: 08, 12, 20 或输入 * 表示全天" />
             <small>可输入多个小时，使用逗号或空格分隔;留空则默认每天执行一次任务即可</small>
             <div class="tip-box">
               <p>
-                Cloudflare Workers Cron 以 UTC 计算，例如北京时间 08:00 (UTC
-                00:00) 需设置 Cron 为 <code>0 0 * * *</code> 并在此填入 00。
+                Cloudflare Workers Cron 以 UTC 计算，例如北京时间 08:00 (UTC 00:00) 需设置 Cron 为 <code>0 0 * * *</code>。
               </p>
               <p>
-                若 Cron 已设置为每小时执行，可用该字段限制实际发送提醒的小时段。
+                若 Cron 已设置为每小时执行，可用该字段限制周期性通知的实际发送提醒的小时段。
               </p>
             </div>
           </div>

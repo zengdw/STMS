@@ -556,6 +556,14 @@ export class TaskService {
     const unit = rule.unit;
 
     let nextDueDate = new Date(currentDueDate);
+
+    // FIX: If the current time is before the scheduled end date, it's an early execution (e.g. reminder).
+    // In this case, do NOT auto-renew (move the date forward) yet.
+    // The date should only be updated when the task is executed at or after the due date.
+    if (Date.now() < currentDueDate.getTime()) {
+      return;
+    }
+
     if (unit === 'day') {
       nextDueDate.setDate(nextDueDate.getDate() + interval);
     } else if (unit === 'month') {

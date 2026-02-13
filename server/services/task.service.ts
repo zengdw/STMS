@@ -284,14 +284,14 @@ export class TaskService {
    * @param env 环境变量
    * @param task 任务对象
    */
-  static async executeTask(env: Environment, task: Task): Promise<void> {
+  static async executeTask(env: Environment, task: Task, isTest = false): Promise<void> {
     console.log(`执行任务: ${task.name} (${task.type})`);
 
     try {
       if (task.type === 'keepalive') {
         await this.executeKeepaliveTask(env, task);
       } else if (task.type === 'notification') {
-        await this.executeNotificationTask(env, task);
+        await this.executeNotificationTask(env, task, isTest);
       } else {
         throw new Error(`未知的任务类型: ${task.type}`);
       }
@@ -309,7 +309,7 @@ export class TaskService {
    */
   static async executeKeepaliveTask(
     env: Environment,
-    task: Task
+    task: Task,
   ): Promise<ExecutionResult> {
     const startTime = Date.now();
 
@@ -419,7 +419,8 @@ export class TaskService {
    */
   static async executeNotificationTask(
     env: Environment,
-    task: Task
+    task: Task,
+    isTest = false
   ): Promise<ExecutionResult> {
     const startTime = Date.now();
 
@@ -447,7 +448,7 @@ export class TaskService {
           config.title || '系统通知',
           message,
           {
-            type: 'notification_task',
+            type: isTest ? 'test' : 'notification_task',
             task_id: task.id,
             task_name: task.name
           }

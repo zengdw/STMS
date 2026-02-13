@@ -124,7 +124,7 @@ export class TaskRoutes {
       if (!task) {
         return ResponseUtils.notFound('任务不存在');
       }
-      await TaskService.executeTask(env, task.data as Task);
+      await TaskService.executeTask(env, task.data as Task, true);
 
       return ResponseUtils.json({
         success: true,

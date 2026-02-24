@@ -10,7 +10,7 @@ export const useLogsStore = defineStore('logs', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const filter = ref<LogFilter>({
-    limit: 50,
+    limit: 20,
     offset: 0
   })
   const totalCount = ref(0)
@@ -52,33 +52,6 @@ export const useLogsStore = defineStore('logs', () => {
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : '获取日志列表失败'
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // 加载更多日志
-  async function loadMore(): Promise<void> {
-    if (!hasMore.value || loading.value) return
-
-    const currentOffset = filter.value.offset || 0
-    const currentLimit = filter.value.limit || 50
-
-    filter.value.offset = currentOffset + currentLimit
-
-    loading.value = true
-    error.value = null
-
-    try {
-      const response = await logApi.getLogs(filter.value)
-
-      if (response.success && response.data) {
-        logs.value.push(...response.data)
-      } else {
-        error.value = response.error || '加载更多日志失败'
-      }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '加载更多日志失败'
     } finally {
       loading.value = false
     }
@@ -130,14 +103,6 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
-  // 清除筛选条件
-  function clearFilter(): void {
-    filter.value = {
-      limit: 50,
-      offset: 0
-    }
-  }
-
   // 清除错误
   function clearError(): void {
     error.value = null
@@ -163,10 +128,8 @@ export const useLogsStore = defineStore('logs', () => {
     hasMore,
     // 方法
     fetchLogs,
-    loadMore,
     exportLogs,
     setFilter,
-    clearFilter,
     clearError,
     refresh
   }

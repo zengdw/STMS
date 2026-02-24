@@ -117,6 +117,8 @@ export interface SystemStatus {
   }
   executions: {
     total: number
+    successCount: number
+    failureCount: number
     last24h: number
     successRate: number
     averageResponseTime: number

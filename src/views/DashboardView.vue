@@ -202,15 +202,13 @@ const recentLogs = computed(() => {
   return logsStore.logs.slice(0, 10)
 })
 
-// 执行统计 - 基于 systemStore 的执行数据（仅执行日志）
+// 执行统计 - 直接使用后端返回的统计数据（仅执行日志）
 const executionSuccessCount = computed(() => {
-  const total = systemStore.totalExecutions
-  const rate = systemStore.status?.executions?.successRate || 0
-  return Math.round(total * rate / 100)
+  return systemStore.status?.executions?.successCount || 0
 })
 
 const executionFailureCount = computed(() => {
-  return systemStore.totalExecutions - executionSuccessCount.value
+  return systemStore.status?.executions?.failureCount || 0
 })
 
 onMounted(async () => {

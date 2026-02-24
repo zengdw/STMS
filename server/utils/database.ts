@@ -451,6 +451,22 @@ export class DatabaseUtils {
   }
 
   /**
+   * 获取执行日志中成功的总数
+   * @param env 环境变量
+   * @returns 成功总数
+   */
+  static async getExecutionLogsSuccessCount(env: Environment): Promise<number> {
+    try {
+      const result = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM execution_logs WHERE log_type = "execution" AND status = "success"'
+      ).first();
+      return (result as any)?.count || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
    * 获取所有执行日志
    * @param env 环境变量
    * @param limit 限制数量

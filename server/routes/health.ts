@@ -19,6 +19,8 @@ interface SystemMetrics {
   };
   executions: {
     total: number;
+    successCount: number;
+    failureCount: number;
     last24h: number;
     successRate: number;
     averageResponseTime: number;
@@ -186,12 +188,7 @@ export class HealthRoutes {
       new Date(log.execution_time) >= yesterday
     );
 
-    const successCount = last24hLogs.filter(l => l.status === 'success').length;
-    const successRate = last24hLogs.length > 0
-      ? (successCount / last24hLogs.length) * 100
-      : 100;
-
-    // 计算平均响应时间
+    // 计算平均响应时间（最近24h）
     const responseTimes = last24hLogs
       .filter(log => log.response_time !== undefined && log.response_time !== null)
       .map(log => log.response_time!);
@@ -203,8 +200,16 @@ export class HealthRoutes {
     // 获取数据库健康状态
     const healthCheck = await DatabaseUtils.healthCheck(env);
 
-    // 获取总执行次数（仅统计执行日志）
+    // 获取总执行次数及成功/失败数（仅统计执行日志，全局范围）
     const totalExecutions = await DatabaseUtils.getTotalExecutionLogsCount(env);
+    const totalSuccessCount = await DatabaseUtils.getExecutionLogsSuccessCount(env);
+    const totalFailureCount = totalExecutions - totalSuccessCount;
+
+    // 成功率基于全部执行日志计算
+    const successRate = totalExecutions > 0
+      ? (totalSuccessCount / totalExecutions) * 100
+      : 100;
+
 
     // 获取错误日志统计
     const errorLogsResult = await LogService.getErrorLogs(env, 100);
@@ -235,6 +240,8 @@ export class HealthRoutes {
       },
       executions: {
         total: totalExecutions,
+        successCount: totalSuccessCount,
+        failureCount: totalFailureCount,
         last24h: last24hLogs.length,
         successRate: Math.round(successRate * 100) / 100,
         averageResponseTime: Math.round(averageResponseTime)

@@ -485,54 +485,65 @@ export class DatabaseUtils {
     endDate?: string;
     limit?: number;
     offset?: number;
-  }): Promise<DatabaseResult<ExecutionLog[]>> {
+  }): Promise<DatabaseResult<{ logs: ExecutionLog[]; total: number }>> {
     return this.executeWithRetry(async () => {
-      let query = 'SELECT * FROM execution_logs WHERE 1=1';
-      const bindings: any[] = [];
+      let whereClause = ' WHERE 1=1';
+      const whereBindings: any[] = [];
 
       if (filter?.taskId) {
-        query += ' AND task_id = ?';
-        bindings.push(filter.taskId);
+        whereClause += ' AND task_id = ?';
+        whereBindings.push(filter.taskId);
       }
 
       if (filter?.logType) {
-        query += ' AND log_type = ?';
-        bindings.push(filter.logType);
+        whereClause += ' AND log_type = ?';
+        whereBindings.push(filter.logType);
       }
 
       if (filter?.status) {
-        query += ' AND status = ?';
-        bindings.push(filter.status);
+        whereClause += ' AND status = ?';
+        whereBindings.push(filter.status);
       }
 
       if (filter?.startDate) {
-        query += ' AND execution_time >= ?';
-        bindings.push(filter.startDate);
+        whereClause += ' AND execution_time >= ?';
+        whereBindings.push(filter.startDate);
       }
 
       if (filter?.endDate) {
-        query += ' AND execution_time <= ?';
-        bindings.push(filter.endDate);
+        whereClause += ' AND execution_time <= ?';
+        whereBindings.push(filter.endDate);
       }
 
-      query += ' ORDER BY execution_time DESC';
+      // 查询总数
+      const countQuery = 'SELECT COUNT(*) as total FROM execution_logs' + whereClause;
+      const countStmt = env.DB.prepare(countQuery);
+      const countResult = whereBindings.length > 0
+        ? await countStmt.bind(...whereBindings).first()
+        : await countStmt.first();
+      const total = (countResult as any)?.total || 0;
+
+      // 查询数据
+      let dataQuery = 'SELECT * FROM execution_logs' + whereClause + ' ORDER BY execution_time DESC';
+      const dataBindings = [...whereBindings];
 
       if (filter?.limit) {
-        query += ' LIMIT ?';
-        bindings.push(filter.limit);
+        dataQuery += ' LIMIT ?';
+        dataBindings.push(filter.limit);
       }
 
       if (filter?.offset) {
-        query += ' OFFSET ?';
-        bindings.push(filter.offset);
+        dataQuery += ' OFFSET ?';
+        dataBindings.push(filter.offset);
       }
 
-      const stmt = env.DB.prepare(query);
-      const result = bindings.length > 0
-        ? await stmt.bind(...bindings).all()
-        : await stmt.all();
+      const dataStmt = env.DB.prepare(dataQuery);
+      const result = dataBindings.length > 0
+        ? await dataStmt.bind(...dataBindings).all()
+        : await dataStmt.all();
 
-      return result.results.map(row => ExecutionLogModel.fromDatabaseRow(row));
+      const logs = result.results.map(row => ExecutionLogModel.fromDatabaseRow(row));
+      return { logs, total };
     });
   }
 

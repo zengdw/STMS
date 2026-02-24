@@ -121,7 +121,7 @@ export class LogService {
   static async getExecutionLogs(
     env: Environment,
     filter?: LogFilter
-  ): Promise<{ success: boolean; data?: ExecutionLog[]; error?: string }> {
+  ): Promise<{ success: boolean; data?: ExecutionLog[]; total?: number; error?: string }> {
     try {
       const dbFilter: any = {
         taskId: filter?.taskId,
@@ -140,7 +140,8 @@ export class LogService {
       }
 
       // 如果指定了任务类型筛选，需要关联任务表进行筛选
-      let logs = result.data || [];
+      let logs = result.data?.logs || [];
+      let total = result.data?.total || 0;
       if (filter?.taskType) {
         const filteredLogs: ExecutionLog[] = [];
         for (const log of logs) {
@@ -150,9 +151,11 @@ export class LogService {
           }
         }
         logs = filteredLogs;
+        // 注意：按任务类型筛选时总数不精确，使用筛选后的长度
+        total = filteredLogs.length;
       }
 
-      return { success: true, data: logs };
+      return { success: true, data: logs, total };
     } catch (error) {
       return {
         success: false,
@@ -288,7 +291,7 @@ export class LogService {
       }
 
       // 转换为错误日志格式
-      const errorLogs: ErrorLog[] = (result.data || []).map(log => {
+      const errorLogs: ErrorLog[] = (result.data?.logs || []).map(log => {
         const details = log.details ? JSON.parse(log.details) : {};
         return {
           id: log.id,
@@ -395,7 +398,7 @@ export class LogService {
       }
 
       // 转换为审计日志格式
-      let auditLogs: AuditLog[] = (result.data || []).map(log => {
+      let auditLogs: AuditLog[] = (result.data?.logs || []).map(log => {
         const details = log.details ? JSON.parse(log.details) : {};
         return {
           id: log.id,

@@ -124,11 +124,39 @@
           </div>
         </div>
 
-        <!-- 加载更多 -->
-        <div v-if="logsStore.hasMore" class="load-more">
-          <button @click="loadMore" class="btn-load-more" :disabled="logsStore.loading">
-            {{ logsStore.loading ? '加载中...' : '加载更多' }}
-          </button>
+        <!-- 分页控件 -->
+        <div class="pagination">
+          <div class="pagination-info">
+            显示 {{ startIndex }} - {{ endIndex }} 条，共 {{ logsStore.totalCount }} 条
+          </div>
+          <div class="pagination-controls">
+            <button @click="goToFirstPage" :disabled="currentPage === 1 || logsStore.loading" class="btn-page">
+              首页
+            </button>
+            <button @click="goToPreviousPage" :disabled="currentPage === 1 || logsStore.loading" class="btn-page">
+              上一页
+            </button>
+            <div class="page-numbers">
+              <button v-for="page in visiblePages" :key="page" @click="goToPage(page)"
+                :class="['btn-page-number', { active: page === currentPage }]" :disabled="logsStore.loading">
+                {{ page }}
+              </button>
+            </div>
+            <button @click="goToNextPage" :disabled="currentPage === totalPages || logsStore.loading" class="btn-page">
+              下一页
+            </button>
+            <button @click="goToLastPage" :disabled="currentPage === totalPages || logsStore.loading" class="btn-page">
+              末页
+            </button>
+          </div>
+          <div class="pagination-size">
+            <label>每页显示：</label>
+            <select v-model.number="pageSize" @change="changePageSize">
+              <option :value="20">20 条</option>
+              <option :value="50">50 条</option>
+              <option :value="100">100 条</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -139,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import LogDetailModal from '@/components/LogDetailModal.vue'
 import { useLogsStore } from '@/stores/logs'
@@ -153,23 +181,60 @@ const filterStatus = ref('')
 const filterStartDate = ref('')
 const filterEndDate = ref('')
 const selectedLog = ref<LogEntry | null>(null)
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+// 分页计算
+const totalPages = computed(() => {
+  return Math.ceil(logsStore.totalCount / pageSize.value) || 1
+})
+
+const startIndex = computed(() => {
+  return (currentPage.value - 1) * pageSize.value + 1
+})
+
+const endIndex = computed(() => {
+  const end = currentPage.value * pageSize.value
+  return Math.min(end, logsStore.totalCount)
+})
+
+const visiblePages = computed(() => {
+  const pages: number[] = []
+  const maxVisible = 5
+  let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2))
+  let end = Math.min(totalPages.value, start + maxVisible - 1)
+
+  if (end - start < maxVisible - 1) {
+    start = Math.max(1, end - maxVisible + 1)
+  }
+
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+
+  return pages
+})
 
 onMounted(async () => {
   await logsStore.fetchLogs()
 })
 
 function applyFilters() {
+  currentPage.value = 1
   logsStore.setFilter({
     logType: filterLogType.value as any,
     taskType: filterTaskType.value as any,
     status: filterStatus.value as any,
     startDate: filterStartDate.value || undefined,
-    endDate: filterEndDate.value || undefined
+    endDate: filterEndDate.value || undefined,
+    limit: pageSize.value,
+    offset: 0
   })
   logsStore.fetchLogs()
 }
 
 async function refreshLogs() {
+  currentPage.value = 1
   await logsStore.refresh()
 }
 
@@ -177,8 +242,39 @@ async function exportLogs() {
   await logsStore.exportLogs()
 }
 
-async function loadMore() {
-  await logsStore.loadMore()
+function goToPage(page: number) {
+  if (page < 1 || page > totalPages.value || page === currentPage.value) return
+  currentPage.value = page
+  logsStore.setFilter({
+    limit: pageSize.value,
+    offset: (page - 1) * pageSize.value
+  })
+  logsStore.fetchLogs()
+}
+
+function goToFirstPage() {
+  goToPage(1)
+}
+
+function goToPreviousPage() {
+  goToPage(currentPage.value - 1)
+}
+
+function goToNextPage() {
+  goToPage(currentPage.value + 1)
+}
+
+function goToLastPage() {
+  goToPage(totalPages.value)
+}
+
+function changePageSize() {
+  currentPage.value = 1
+  logsStore.setFilter({
+    limit: pageSize.value,
+    offset: 0
+  })
+  logsStore.fetchLogs()
 }
 
 function showLogDetail(log: LogEntry) {
@@ -478,29 +574,105 @@ function formatLogType(type: string): string {
   flex-basis: 100%;
 }
 
-.load-more {
-  text-align: center;
-  padding: 2rem 0;
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f7fafc;
+  border-radius: 8px;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
-.btn-load-more {
-  padding: 0.75rem 2rem;
-  background: #4299e1;
-  color: white;
-  border: none;
+.pagination-info {
+  font-size: 0.9rem;
+  color: #4a5568;
+  font-weight: 500;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-page {
+  padding: 0.5rem 1rem;
+  background: white;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
   border-radius: 6px;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.btn-load-more:hover:not(:disabled) {
-  background: #3182ce;
+.btn-page:hover:not(:disabled) {
+  background: #edf2f7;
+  border-color: #cbd5e0;
 }
 
-.btn-load-more:disabled {
-  opacity: 0.6;
+.btn-page:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+.page-numbers {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.btn-page-number {
+  padding: 0.5rem 0.75rem;
+  background: white;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 40px;
+}
+
+.btn-page-number:hover:not(:disabled) {
+  background: #edf2f7;
+  border-color: #cbd5e0;
+}
+
+.btn-page-number.active {
+  background: #4299e1;
+  color: white;
+  border-color: #4299e1;
+}
+
+.btn-page-number:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pagination-size label {
+  font-size: 0.9rem;
+  color: #4a5568;
+  font-weight: 500;
+}
+
+.pagination-size select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {
@@ -518,6 +690,21 @@ function formatLogType(type: string): string {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+  }
+
+  .pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination-info,
+  .pagination-size {
+    justify-content: center;
   }
 }
 </style>

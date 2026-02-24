@@ -61,7 +61,8 @@ async function request<T>(
 
     return {
       success: true,
-      data: data.data || data
+      data: data.data || data,
+      total: data.total
     }
   } catch (error) {
     return {

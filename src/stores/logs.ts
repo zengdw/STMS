@@ -46,8 +46,7 @@ export const useLogsStore = defineStore('logs', () => {
 
       if (response.success && response.data) {
         logs.value = response.data
-        // 注意：实际应该从API响应中获取总数
-        totalCount.value = response.data.length
+        totalCount.value = response.total ?? response.data.length
       } else {
         error.value = response.error || '获取日志列表失败'
       }

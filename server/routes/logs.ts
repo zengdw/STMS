@@ -103,7 +103,8 @@ export class LogRoutes {
 
       return new Response(JSON.stringify({
         success: true,
-        data: await Promise.all(mappedData)
+        data: await Promise.all(mappedData),
+        total: result.total || 0
       } as ApiResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }

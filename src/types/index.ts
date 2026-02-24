@@ -146,6 +146,7 @@ export interface SystemStatus {
 export interface ApiResponse<T = any> {
   success: boolean
   data?: T
+  total?: number
   error?: string
   message?: string
 }

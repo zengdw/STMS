@@ -54,15 +54,15 @@
       <div class="stats">
         <div class="stat-card">
           <div class="stat-label">总日志数</div>
-          <div class="stat-value">{{ logsStore.logs.length }}</div>
+          <div class="stat-value">{{ logsStore.totalLogsCount }}</div>
         </div>
         <div class="stat-card success">
           <div class="stat-label">成功</div>
-          <div class="stat-value">{{ logsStore.successLogs.length }}</div>
+          <div class="stat-value">{{ logsStore.successCount }}</div>
         </div>
         <div class="stat-card failure">
           <div class="stat-label">失败</div>
-          <div class="stat-value">{{ logsStore.failureLogs.length }}</div>
+          <div class="stat-value">{{ logsStore.failureCount }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">成功率</div>
@@ -216,7 +216,10 @@ const visiblePages = computed(() => {
 })
 
 onMounted(async () => {
-  await logsStore.fetchLogs()
+  await Promise.all([
+    logsStore.fetchLogs(),
+    logsStore.fetchLogStats()
+  ])
 })
 
 function applyFilters() {

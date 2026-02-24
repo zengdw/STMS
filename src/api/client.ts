@@ -191,6 +191,18 @@ export const logApi = {
     return request<LogEntry[]>(`/logs${query ? `?${query}` : ''}`)
   },
 
+  // 获取日志统计
+  async getLogStats(): Promise<ApiResponse<{
+    totalLogs: number
+    successCount: number
+    failureCount: number
+    executionLogs: number
+    errorLogs: number
+    auditLogs: number
+  }>> {
+    return request('/logs/statistics')
+  },
+
   // 导出日志
   async exportLogs(filter?: LogFilter): Promise<Blob | null> {
     const params = new URLSearchParams()

@@ -14,8 +14,35 @@ export const useLogsStore = defineStore('logs', () => {
     offset: 0
   })
   const totalCount = ref(0)
+  const logStats = ref<{
+    totalLogs: number
+    successCount: number
+    failureCount: number
+    executionLogs: number
+    errorLogs: number
+    auditLogs: number
+  } | null>(null)
 
-  // 计算属性
+  // 计算属性 - 基于全局统计数据
+  const totalLogsCount = computed(() =>
+    logStats.value?.totalLogs ?? totalCount.value
+  )
+
+  const successCount = computed(() =>
+    logStats.value?.successCount ?? 0
+  )
+
+  const failureCount = computed(() =>
+    logStats.value?.failureCount ?? 0
+  )
+
+  const successRate = computed(() => {
+    const total = totalLogsCount.value
+    if (total === 0) return 0
+    return (successCount.value / total) * 100
+  })
+
+  // 保留原有的分页内计算属性（其他地方可能用到）
   const successLogs = computed(() =>
     logs.value.filter(log => log.status === 'success')
   )
@@ -23,11 +50,6 @@ export const useLogsStore = defineStore('logs', () => {
   const failureLogs = computed(() =>
     logs.value.filter(log => log.status === 'failure')
   )
-
-  const successRate = computed(() => {
-    if (logs.value.length === 0) return 0
-    return (successLogs.value.length / logs.value.length) * 100
-  })
 
   const hasMore = computed(() => {
     const currentOffset = filter.value.offset || 0
@@ -54,6 +76,19 @@ export const useLogsStore = defineStore('logs', () => {
       error.value = err instanceof Error ? err.message : '获取日志列表失败'
     } finally {
       loading.value = false
+    }
+  }
+
+  // 获取日志统计信息（全局）
+  async function fetchLogStats(): Promise<void> {
+    try {
+      const response = await logApi.getLogStats()
+      if (response.success && response.data) {
+        logStats.value = response.data
+      }
+    } catch (err) {
+      // 统计获取失败不影响主流程
+      console.error('获取日志统计失败:', err)
     }
   }
 
@@ -121,13 +156,18 @@ export const useLogsStore = defineStore('logs', () => {
     error,
     filter,
     totalCount,
+    logStats,
     // 计算属性
+    totalLogsCount,
+    successCount,
+    failureCount,
     successLogs,
     failureLogs,
     successRate,
     hasMore,
     // 方法
     fetchLogs,
+    fetchLogStats,
     exportLogs,
     setFilter,
     clearError,

@@ -99,17 +99,17 @@
 
           <div class="stat-card">
             <div class="stat-header">
-              <h3>执行日志</h3>
-              <span class="stat-value">{{ logsStore.logs.length }}</span>
+              <h3>执行统计</h3>
+              <span class="stat-value">{{ systemStore.totalExecutions }}</span>
             </div>
             <div class="stat-breakdown">
               <div class="stat-item">
                 <span class="label">成功：</span>
-                <span class="value success">{{ logsStore.successLogs.length }}</span>
+                <span class="value success">{{ executionSuccessCount }}</span>
               </div>
               <div class="stat-item">
                 <span class="label">失败：</span>
-                <span class="value failure">{{ logsStore.failureLogs.length }}</span>
+                <span class="value failure">{{ executionFailureCount }}</span>
               </div>
             </div>
           </div>
@@ -200,6 +200,17 @@ const recentTasks = computed(() => {
 // 最近的日志（前10条）
 const recentLogs = computed(() => {
   return logsStore.logs.slice(0, 10)
+})
+
+// 执行统计 - 基于 systemStore 的执行数据（仅执行日志）
+const executionSuccessCount = computed(() => {
+  const total = systemStore.totalExecutions
+  const rate = systemStore.status?.executions?.successRate || 0
+  return Math.round(total * rate / 100)
+})
+
+const executionFailureCount = computed(() => {
+  return systemStore.totalExecutions - executionSuccessCount.value
 })
 
 onMounted(async () => {

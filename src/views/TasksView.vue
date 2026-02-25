@@ -70,8 +70,7 @@
               </div>
               <div class="detail-item">
                 <span class="label">到期日期：</span>
-                <span>{{ formatDate(task.config.executionRule.nextDueDate ||
-                  calculateDueDate(task.config.executionRule)) }}</span>
+                <span>{{ formatDate(task.config.executionRule.endDate || '') }}</span>
               </div>
               <div class="detail-item" v-if="task.config.executionRule.reminderAdvanceValue !== undefined">
                 <span class="label">提前天数：</span>
@@ -167,28 +166,6 @@ function formatDate(dateString: string): string {
   if (!dateString) return ''
   const date = new Date(dateString)
   return date.toLocaleDateString('zh-CN')
-}
-
-function calculateDueDate(rule: any): string {
-  if (!rule.startDate) return ''
-
-  const start = new Date(rule.startDate)
-  const interval = rule.interval || 0
-  const unit = rule.unit
-
-  if (isNaN(start.getTime())) return ''
-
-  const due = new Date(start)
-
-  if (unit === 'day') {
-    due.setDate(due.getDate() + interval)
-  } else if (unit === 'month') {
-    due.setMonth(due.getMonth() + interval)
-  } else if (unit === 'year') {
-    due.setFullYear(due.getFullYear() + interval)
-  }
-
-  return due.toISOString()
 }
 </script>
 

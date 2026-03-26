@@ -89,6 +89,7 @@
           <div class="form-group">
             <label for="cronExpression">CRON表达式 *</label>
             <input id="cronExpression" v-model="formData.cronExpression" type="text" placeholder="* * * * *" />
+            <small class="help-text">cloudflare worker的执行周期是1小时，所以cron表达式的最小周期是1小时</small>
           </div>
         </div>
 

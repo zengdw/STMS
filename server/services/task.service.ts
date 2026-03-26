@@ -323,10 +323,12 @@ export class TaskService {
       const config = task.config as KeepaliveConfig;
 
       // 设置请求选项
+      // 注意：config.timeout 的单位是秒，而 AbortSignal.timeout 期望毫秒
+      const timeoutMs = config.timeout ? config.timeout * 1000 : 30000;
       const requestOptions: RequestInit = {
         method: config.method,
         headers: config.headers || {},
-        signal: AbortSignal.timeout(config.timeout || 30000)
+        signal: AbortSignal.timeout(timeoutMs)
       };
 
       // 如果有请求体，添加到请求中

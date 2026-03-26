@@ -63,21 +63,28 @@
           </div>
           <div class="task-details">
             <!-- Periodic Task Details -->
-            <template v-if="task.config?.executionRule">
+            <template v-if="task.type === 'notification' && (task.config as NotificationConfig).executionRule">
               <div class="detail-item">
                 <span class="label">开始日期：</span>
-                <span>{{ formatDate(task.config.executionRule.startDate) }}</span>
+                <span>{{ formatDate((task.config as NotificationConfig).executionRule?.startDate) }}</span>
               </div>
               <div class="detail-item">
                 <span class="label">到期日期：</span>
-                <span>{{ formatDate(task.config.executionRule.endDate || '') }}</span>
+                <span>{{ formatDate((task.config as NotificationConfig).executionRule?.endDate || '') }}</span>
               </div>
-              <div class="detail-item" v-if="task.config.executionRule.reminderAdvanceValue !== undefined">
+              <div class="detail-item"
+                v-if="(task.config as NotificationConfig).executionRule?.reminderAdvanceValue !== undefined">
                 <span class="label">提前天数：</span>
                 <span>
-                  {{ task.config.executionRule.reminderAdvanceValue }}
-                  {{ task.config.executionRule.reminderAdvanceUnit === 'hour' ? '小时' : '天' }}
+                  {{ (task.config as NotificationConfig).executionRule?.reminderAdvanceValue }}
+                  {{ (task.config as NotificationConfig).executionRule?.reminderAdvanceUnit === 'hour' ? '小时' : '天' }}
                 </span>
+              </div>
+            </template>
+            <template v-else-if="task.type === 'keepalive'">
+              <div class="detail-item">
+                <span class="label">CRON表达式：</span>
+                <span>{{ task.cronExpression }}</span>
               </div>
             </template>
 
@@ -107,7 +114,7 @@ import { ref, onMounted } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import TaskModal from '@/components/TaskModal.vue'
 import { useTasksStore } from '@/stores/tasks'
-import type { Task } from '@/types'
+import type { NotificationConfig, Task } from '@/types'
 
 const tasksStore = useTasksStore()
 
@@ -162,7 +169,7 @@ function formatDateTime(dateString: string): string {
   return date.toLocaleString('zh-CN')
 }
 
-function formatDate(dateString: string): string {
+function formatDate(dateString?: string): string {
   if (!dateString) return ''
   const date = new Date(dateString)
   return date.toLocaleDateString('zh-CN')

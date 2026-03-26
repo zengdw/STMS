@@ -37,6 +37,7 @@ export class TaskService {
         name: taskData.name,
         type: taskData.type,
         config: taskData.config,
+        cronExpression: taskData.cronExpression,
         created_by: userId,
         enabled: taskData.enabled !== undefined ? taskData.enabled : true
       });
@@ -367,15 +368,7 @@ export class TaskService {
         last_status: executionResult.success ? 'success' : 'failure'
       };
 
-      // Handle Auto Renew
-      if (task.config.executionRule?.autoRenew) {
-        this.handleAutoRenew(task, updateData);
-      }
-
       await DatabaseUtils.updateTask(env, task.id, updateData);
-
-      // 处理通知
-      await this.handleTaskNotifications(env, task, executionResult);
 
       return executionResult;
     } catch (error) {

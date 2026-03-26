@@ -24,25 +24,12 @@ export interface AuthResult {
 export type TaskType = 'keepalive' | 'notification'
 export type TaskStatus = 'success' | 'failure'
 
-export interface ExecutionRule {
-  type: 'interval'
-  unit: 'day' | 'month' | 'year'
-  interval: number
-  startDate: string
-  endDate?: string
-  reminderAdvanceValue?: number
-  reminderAdvanceUnit?: 'day' | 'hour'
-  autoRenew?: boolean
-  nextDueDate?: string
-}
-
 export interface KeepaliveConfig {
   url: string
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   headers?: Record<string, string>
   body?: string
   timeout: number
-  executionRule?: ExecutionRule
 }
 
 export interface NotificationConfig {
@@ -55,6 +42,7 @@ export interface Task {
   id: string
   name: string
   type: TaskType
+  cronExpression?: string
   config: KeepaliveConfig | NotificationConfig
   enabled: boolean
   createdBy: string
@@ -69,6 +57,7 @@ export interface TaskConfig {
   type: TaskType
   config: KeepaliveConfig | NotificationConfig
   enabled: boolean
+  cronExpression?: string
 }
 
 export interface TaskFilter {

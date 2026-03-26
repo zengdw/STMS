@@ -219,12 +219,13 @@ export class DatabaseUtils {
     return this.executeWithRetry(async () => {
       const data = TaskModel.toDatabaseInsert(task);
       await env.DB.prepare(
-        'INSERT INTO tasks (id, name, type, config, enabled, created_by, created_at, updated_at, last_executed, last_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO tasks (id, name, type, config, cronExpression, enabled, created_by, created_at, updated_at, last_executed, last_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(
         data.id,
         data.name,
         data.type,
         data.config,
+        data.cronExpression,
         data.enabled,
         data.created_by,
         data.created_at,
@@ -321,11 +322,12 @@ export class DatabaseUtils {
 
       // 执行更新
       await env.DB.prepare(
-        'UPDATE tasks SET name = ?, type = ?, config = ?, enabled = ?, updated_at = ?, last_executed = ?, last_status = ? WHERE id = ?'
+        'UPDATE tasks SET name = ?, type = ?, config = ?, cronExpression = ?, enabled = ?, updated_at = ?, last_executed = ?, last_status = ? WHERE id = ?'
       ).bind(
         data.name,
         data.type,
         data.config,
+        data.cronExpression,
         data.enabled,
         data.updated_at,
         data.last_executed,

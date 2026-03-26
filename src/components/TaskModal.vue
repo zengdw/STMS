@@ -22,10 +22,10 @@
         </div>
 
         <div class="form-group">
-          <label>执行计划类型 *</label>
+          <label>执行时间设置 *</label>
         </div>
 
-        <div class="periodic-config">
+        <div class="periodic-config" v-if="formData.type === 'notification'">
           <!-- Row 1: Start Date, Interval Value, Interval Unit -->
           <div class="form-row three-cols">
             <div class="form-group">
@@ -83,6 +83,12 @@
                 </label>
               </div>
             </div>
+          </div>
+        </div>
+        <div class="periodic-config" v-else>
+          <div class="form-group">
+            <label for="cronExpression">CRON表达式 *</label>
+            <input id="cronExpression" v-model="formData.cronExpression" type="text" placeholder="* * * * *" />
           </div>
         </div>
 
@@ -188,6 +194,7 @@ const formData = ref<TaskConfig>({
   type: "keepalive",
   enabled: true,
   config: {} as any,
+  cronExpression: "",
 });
 
 const keepaliveConfig = ref<KeepaliveConfig>({
@@ -249,6 +256,7 @@ watch(
         type: task.type,
         enabled: task.enabled,
         config: task.config,
+        cronExpression: task?.cronExpression,
       };
 
       // Check if executionRule exists
@@ -320,21 +328,23 @@ async function handleSubmit() {
 
     // Handle Schedule Type
     // Set a default cron that runs frequently, e.g. every minute, so the aggressive filter passes it to the execution rule check
-    const rule = {
-      type: "interval" as const,
-      unit: periodicConfig.value.unit,
-      interval: periodicConfig.value.interval,
-      startDate: new Date(
-        periodicConfig.value.startDate as string,
-      ).toISOString(),
-      endDate: undefined, // End Date removed
-      reminderAdvanceValue: periodicConfig.value.reminderAdvanceValue,
-      reminderAdvanceUnit: periodicConfig.value.reminderAdvanceUnit,
-      autoRenew: periodicConfig.value.autoRenew,
-    };
+    if (formData.value.type == 'notification') {
+      const rule = {
+        type: "interval" as const,
+        unit: periodicConfig.value.unit,
+        interval: periodicConfig.value.interval,
+        startDate: new Date(
+          periodicConfig.value.startDate as string,
+        ).toISOString(),
+        endDate: undefined, // End Date removed
+        reminderAdvanceValue: periodicConfig.value.reminderAdvanceValue,
+        reminderAdvanceUnit: periodicConfig.value.reminderAdvanceUnit,
+        autoRenew: periodicConfig.value.autoRenew,
+      };
 
-    // Assign executionRule to config
-    (formData.value.config as any).executionRule = rule;
+      // Assign executionRule to config
+      (formData.value.config as any).executionRule = rule;
+    }
 
     // 保存任务
     let success = false;

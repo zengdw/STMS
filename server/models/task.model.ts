@@ -32,13 +32,17 @@ export class TaskModel {
    * @param schedule Cron表达式
    * @returns 是否有效
    */
-  static validateSchedule(schedule: string): boolean {
+  static validateSchedule(schedule?: string): boolean {
     if (!schedule || typeof schedule !== 'string') {
       return false;
     }
-    // 简单的Cron表达式验证（5个字段）
-    const cronRegex = /^(\*|[0-5]?\d|\*\/\d+) (\*|[01]?\d|2[0-3]|\*\/\d+) (\*|[12]?\d|3[01]|\*\/\d+) (\*|[1-9]|1[0-2]|\*\/\d+) (\*|[0-6]|\*\/\d+)$/;
-    return cronRegex.test(schedule.trim());
+    // Cron表达式验证（5-7个字段），包含数字、*、/、-、,、?、L、W等常见特殊字符
+    const parts = schedule.trim().split(/\s+/);
+    if (parts.length < 5 || parts.length > 7) {
+      return false;
+    }
+    const cronPartRegex = /^[\d\*\/\-\,\?LW]+$/i;
+    return parts.every(part => cronPartRegex.test(part));
   }
 
   /**
@@ -167,6 +171,10 @@ export class TaskModel {
       errors.push('任务类型必须是 keepalive 或 notification');
     }
 
+    if (taskData.type === 'keepalive' && !this.validateSchedule(taskData.cronExpression)) {
+      errors.push('Cron表达式格式无效');
+    }
+
     // 验证配置
     if (taskData.config !== undefined && taskData.type !== undefined) {
       if (taskData.type === 'keepalive') {
@@ -203,6 +211,7 @@ export class TaskModel {
     name: string;
     type: 'keepalive' | 'notification';
     config: KeepaliveConfig | NotificationConfig;
+    cronExpression?: string;
     created_by: string;
     enabled?: boolean;
   }): Task {
@@ -212,6 +221,7 @@ export class TaskModel {
       name: taskData.name,
       type: taskData.type,
       config: taskData.config,
+      cronExpression: taskData.cronExpression,
       enabled: taskData.enabled !== undefined ? taskData.enabled : true,
       created_by: taskData.created_by,
       created_at: now,
@@ -243,6 +253,7 @@ export class TaskModel {
       id: row.id,
       name: row.name,
       type: row.type,
+      cronExpression: row.cronExpression,
       config: JSON.parse(row.config),
       enabled: Boolean(row.enabled),
       created_by: row.created_by,
@@ -264,6 +275,7 @@ export class TaskModel {
       name: task.name,
       type: task.type,
       config: JSON.stringify(task.config),
+      cronExpression: task.cronExpression,
       enabled: task.enabled ? 1 : 0,
       created_by: task.created_by,
       created_at: task.created_at,

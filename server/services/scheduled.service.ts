@@ -76,6 +76,9 @@ export class ScheduledService {
       if (config.executionRule) {
         return await this.checkExecutionRule(env, config.executionRule, task);
       }
+      if (task.type === 'keepalive') {
+        return this.checkCronSchedule(task.cronExpression);
+      }
       return false;
     }));
 
@@ -127,6 +130,87 @@ export class ScheduledService {
 
   private static getAdvanceMs(value: number, unit: 'day' | 'hour'): number {
     return value * (unit === 'day' ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000);
+  }
+
+  /**
+   * 验证 Cron 表达式是否在当前时间触发
+   * @param cronExpression Cron表达式
+   * @returns 是否触发
+   */
+  private static checkCronSchedule(cronExpression?: string): boolean {
+    if (!cronExpression) return false;
+
+    // Cron格式: "分 时 日 月 星期" 或 "秒 分 时 日 月 星期"
+    const parts = cronExpression.trim().split(/\s+/);
+    if (parts.length < 5 || parts.length > 7) return false;
+
+    let minute, hour, dom, month, dow;
+    if (parts.length === 5) {
+      [minute, hour, dom, month, dow] = parts;
+    } else {
+      // 6 或 7 位的 Cron，首位为秒（Worker 按分钟调度，因此忽略秒的精准匹配）
+      [, minute, hour, dom, month, dow] = parts;
+    }
+    const localNow = new Date();
+
+    // Worker 环境本地通常是 UTC 时间，但前端设定的 Cron 表达式是 UTC+8 时区
+    // 我们将当前时间加上 8 小时的毫秒数，然后以 UTC 形式读取各个时间单元
+    const now = new Date(localNow.getTime() + 8 * 60 * 60 * 1000);
+
+    const currentMinute = now.getUTCMinutes();
+    const currentHour = now.getUTCHours();
+    const currentDom = now.getUTCDate();
+    const currentMonth = now.getUTCMonth() + 1; // 1-12
+    const currentDow = now.getUTCDay(); // 0-6，0为周日
+
+    const matchPart = (part: string, value: number): boolean => {
+      if (part === '*' || part === '?') return true;
+
+      // 处理逗号分隔的列表项 (如 1,2,3)
+      if (part.includes(',')) {
+        return part.split(',').some(p => matchPart(p, value));
+      }
+
+      // 处理步长 (如 */5 或者 1-10/2)
+      if (part.includes('/')) {
+        const [range, stepStr] = part.split('/');
+        const step = parseInt(stepStr, 10);
+        if (isNaN(step)) return false;
+
+        if (range === '*') {
+          return value % step === 0;
+        } else if (range.includes('-')) {
+          const [startStr, endStr] = range.split('-');
+          const start = parseInt(startStr, 10);
+          const end = parseInt(endStr, 10);
+          if (value >= start && value <= end) {
+            return (value - start) % step === 0;
+          }
+          return false;
+        } else {
+          const start = parseInt(range, 10);
+          if (value >= start) {
+            return (value - start) % step === 0;
+          }
+          return false;
+        }
+      }
+
+      // 处理范围 (如 1-5)
+      if (part.includes('-')) {
+        const [start, end] = part.split('-').map(n => parseInt(n, 10));
+        return value >= start && value <= end;
+      }
+
+      // 处理确切值
+      return parseInt(part, 10) === value;
+    };
+
+    return matchPart(minute, currentMinute) &&
+      matchPart(hour, currentHour) &&
+      matchPart(dom, currentDom) &&
+      matchPart(month, currentMonth) &&
+      (matchPart(dow, currentDow) || (currentDow === 0 && matchPart(dow, 7))); // 支持 Sunday=7
   }
 
 }

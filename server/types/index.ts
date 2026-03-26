@@ -56,6 +56,7 @@ export interface Task {
   name: string;
   type: 'keepalive' | 'notification';
   config: KeepaliveConfig | NotificationConfig;
+  cronExpression?: string;
   enabled: boolean;
   created_by: string;
   created_at: string;
